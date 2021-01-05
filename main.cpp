@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <functional>
 
 #include "test.h"
 
@@ -19,6 +20,11 @@ class String;
 	class Abstract
 	{
 	public:
+		bool isLeaf() const
+		{
+			return children_.size() == 0;
+		}
+
 		virtual bool isEqual(Abstract *other) const
 		{
 			if(!other)
@@ -56,26 +62,34 @@ class String;
 
 		virtual std::string toText() const
 		{
-			std::string text = "(";
-			text += dataToText();
-			if(children_.size() > 0)
-			{
-				text += "(";
-			}
+			std::string text;
+			auto initial = [&text](Abstract const *tree){
+				text += "(" + tree->dataToText();
+				if(!tree->isLeaf())
+				{
+					text += "(";
+				}
+			};
+			auto final = [&text](Abstract const *tree){
+				if(!tree->isLeaf())
+				{
+					text += ")";
+				}
+				text += ")";
+			};
+			traverse(initial, final);
+			return text;
+		}
+
+		void traverse(std::function<void(Abstract const *)> initial,
+					  std::function<void(Abstract const *)> final) const
+		{
+			initial(this);
 			for(auto child = children_.cbegin(); child != children_.cend(); ++child)
 			{
-				if(child != children_.cbegin())
-				{
-					text += ", ";
-				}
-				text += (*child)->toText();
+				(*child)->traverse(initial, final);
 			}
-			if(children_.size() > 0)
-			{
-				text += ")";
-			}
-			text += ")";
-			return text;
+			final(this);			
 		}
 
 	protected:
@@ -85,7 +99,7 @@ class String;
 		std::vector<Abstract const *> children_;
 	};
 
-	class Root : public Abstract
+	class Empty : public Abstract
 	{
 	public:
 
@@ -97,8 +111,8 @@ class String;
 
 		virtual bool isDataEqual(Abstract const *tree) const 
 		{
-		//	std::cout << "Root isDataEqual" << std::endl;
-			return dynamic_cast<Root const *>(tree) != nullptr;
+		//	std::cout << "Empty isDataEqual" << std::endl;
+			return dynamic_cast<Empty const *>(tree) != nullptr;
 		}
 	};
 
@@ -168,14 +182,14 @@ int main(int argc, char* argv[])
 	{
 		std::cout << std::endl << "Tree::isEqual simple" << std::endl;
 
-		ASSERT_EQUALS("root() is always equal to root()",
-			Tree::Root().isEqual(new Tree::Root()), true, "");
+		ASSERT_EQUALS("Empty() is always equal to Empty()",
+			Tree::Empty().isEqual(new Tree::Empty()), true, "");
 
 		ASSERT_EQUALS("(int 42) is NOT equal to ()",
-			Tree::Int(42).isEqual(new Tree::Root()), false, "");
+			Tree::Int(42).isEqual(new Tree::Empty()), false, "");
 
 		ASSERT_EQUALS("() is NOT equal to (int 42)",
-		 	Tree::Root().isEqual(new Tree::Int(42)), false, "");
+		 	Tree::Empty().isEqual(new Tree::Int(42)), false, "");
 
 		ASSERT_EQUALS("(int 42) is equal to (int 42)",
 			Tree::Int(42).isEqual(new Tree::Int(42)), true, "");
@@ -216,7 +230,7 @@ int main(int argc, char* argv[])
 	{
 		std::cout << std::endl << "Tree::toText" << std::endl;
 	
-		ASSERT_EQUALS("()", (new Tree::Root())->toText(), "()", "");
+		ASSERT_EQUALS("()", (new Tree::Empty())->toText(), "()", "");
 
 		ASSERT_EQUALS("(int 42)", (new Tree::Int(42))->toText(), "(int 42)", "");
 
@@ -224,7 +238,7 @@ int main(int argc, char* argv[])
 		 (new Tree::Int(42))
 		 	->addChild(new Tree::Int(100))
 		 	->addChild(new Tree::Int(333))->toText(),
-		 "(int 42((int 100), (int 333)))", "");
+		 "(int 42((int 100)(int 333)))", "");
 	}
 
 	// auto tree = new Tree::Int(8);
