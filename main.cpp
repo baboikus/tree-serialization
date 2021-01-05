@@ -15,158 +15,166 @@
 
 namespace Tree
 {
-class String;
+class Abstract
+{
+public:
+	virtual int childrenCount() const = 0;
 
-	class Abstract
+	virtual Abstract *addChild(Abstract *child) = 0;
+
+	virtual void traverse(
+		std::function<void(Abstract const *)> initial,
+		std::function<void(Abstract const *)> final) const = 0;
+
+	bool isLeaf() const
 	{
-	public:
-		bool isLeaf() const
-		{
-			return children_.size() == 0;
-		}
+		return childrenCount() == 0;
+	}
 
-		virtual bool isEqual(Abstract *other) const
-		{
-			if(!other)
+	bool isEqual(Abstract const *other) const
+	{
+		return other && (other->toText() == toText());
+	}
+
+	virtual std::string toText() const
+	{
+		std::string text;
+		auto initial = [&text](Abstract const *tree){
+			text += tree->dataToText();
+			if(!tree->isLeaf())
 			{
-				return false;
+				text += "(";
 			}
-
-			if(children_.size() != other->children_.size())
+		};
+		auto final = [&text](Abstract const *tree){
+			if(!tree->isLeaf())
 			{
-				return false;
-			}
-
-			if(!isDataEqual(other))
-			{
-				return false;
-			}
-
-			for(auto myChild = children_.cbegin(), otherChild = other->children_.cbegin();
-				myChild != children_.cend() || otherChild != other->children_.cend();
-				++myChild, ++otherChild)
-			{
-				if(!((*myChild)->isDataEqual(*otherChild)))
-				{
-					return false;
-				}
-			}
-			return true;
-		}
-
-		Abstract *addChild(Abstract const *child)
-		{
-			children_.push_back(child);
-			return this;
-		}
-
-		virtual std::string toText() const
-		{
-			std::string text;
-			auto initial = [&text](Abstract const *tree){
-				text += "(" + tree->dataToText();
-				if(!tree->isLeaf())
-				{
-					text += "(";
-				}
-			};
-			auto final = [&text](Abstract const *tree){
-				if(!tree->isLeaf())
-				{
-					text += ")";
-				}
 				text += ")";
-			};
-			traverse(initial, final);
-			return text;
-		}
-
-		void traverse(std::function<void(Abstract const *)> initial,
-					  std::function<void(Abstract const *)> final) const
-		{
-			initial(this);
-			for(auto child = children_.cbegin(); child != children_.cend(); ++child)
-			{
-				(*child)->traverse(initial, final);
 			}
-			final(this);			
-		}
+		};
+		text += "(";
+		traverse(initial, final);
+		text += ")";
+		return text;
+	}
 
-	protected:
-		virtual std::string dataToText() const = 0;
-		virtual bool isDataEqual(Abstract const *tree) const = 0;
-	private:
-		std::vector<Abstract const *> children_;
-	};
+protected:
+	virtual std::string dataToText() const = 0;
+	virtual bool isDataEqual(Abstract const *tree) const = 0;
+};
 
-	class Empty : public Abstract
+class Empty : public Abstract
+{
+public:
+	virtual int childrenCount() const
 	{
-	public:
+		return 0;
+	}
 
-	protected:
-		virtual std::string dataToText() const
-		{
-			return "";
-		}
-
-		virtual bool isDataEqual(Abstract const *tree) const 
-		{
-		//	std::cout << "Empty isDataEqual" << std::endl;
-			return dynamic_cast<Empty const *>(tree) != nullptr;
-		}
-	};
-
-	class Int : public Abstract
+	virtual Abstract *addChild(Abstract *child)
 	{
-	public:
-		Int(const int value) :
-		 data_(value)
-		{
+		return child ? child : this;
+	}
 
-		}
-
-		int data() const
-		{
-			return data_;
-		}
-
-	protected:
-		virtual std::string dataToText() const
-		{
-			return std::string("int ") + std::to_string(data());
-		}
-
-		virtual bool isDataEqual(Abstract const *tree) const 
-		{
-			auto intNode = dynamic_cast<Int const *>(tree);
-		//	std::cout << "Int isDataEqual " << (intNode == nullptr) << std::endl;
-			return intNode && intNode->data() == data(); 
-		}
-
-	private:
-		int data_;
-	};
-
-	class String
+	virtual void traverse(
+		std::function<void(Abstract const *)> initial,
+		std::function<void(Abstract const *)> final) const
 	{
-	public:
-		String(const char* value)
-		{
-
-		}
-	};
-
-	class Tester
+		return;
+	}
+protected:
+	virtual std::string dataToText() const
 	{
-	public:
-		static bool checkSerialization(const char* caseName, Int *expected)
+		return "";
+	}
+
+	virtual bool isDataEqual(Abstract const *tree) const 
+	{
+	//	std::cout << "Empty isDataEqual" << std::endl;
+		return dynamic_cast<Empty const *>(tree) != nullptr;
+	}
+};
+
+class Naive : public Abstract
+{
+public:
+	virtual int childrenCount() const
+	{
+		return children_.size();
+	}
+
+	virtual Abstract *addChild(Abstract *child)
+	{
+		children_.push_back(child);
+		return this;
+	}
+
+	virtual void traverse(std::function<void(Abstract const *)> initial,
+				  std::function<void(Abstract const *)> final) const
+	{
+		initial(this);
+		for(auto child = children_.cbegin(); child != children_.cend(); ++child)
 		{
-		//	expected->saveToFile();
-		//	const auto actual = Tree::fromFile();
-		//	ASSERT_EQUALS(caseName, *actual, *expected, "");
-			return false;
+			(*child)->traverse(initial, final);
 		}
-	};
+		final(this);			
+	}
+
+private:
+	std::vector<Abstract const *> children_;
+};
+
+class Int : public Naive
+{
+public:
+	Int(const int value) :
+	 data_(value)
+	{
+
+	}
+
+	int data() const
+	{
+		return data_;
+	}
+
+protected:
+	virtual std::string dataToText() const
+	{
+		return std::string("int ") + std::to_string(data());
+	}
+
+	virtual bool isDataEqual(Abstract const *tree) const 
+	{
+		auto intNode = dynamic_cast<Int const *>(tree);
+	//	std::cout << "Int isDataEqual " << (intNode == nullptr) << std::endl;
+		return intNode && intNode->data() == data(); 
+	}
+
+private:
+	int data_;
+};
+
+class String
+{
+public:
+	String(const char* value)
+	{
+
+	}
+};
+
+class Tester
+{
+public:
+	static bool checkSerialization(const char* caseName, Int *expected)
+	{
+	//	expected->saveToFile();
+	//	const auto actual = Tree::fromFile();
+	//	ASSERT_EQUALS(caseName, *actual, *expected, "");
+		return false;
+	}
+};
 }
 
 int main(int argc, char* argv[])
@@ -238,7 +246,15 @@ int main(int argc, char* argv[])
 		 (new Tree::Int(42))
 		 	->addChild(new Tree::Int(100))
 		 	->addChild(new Tree::Int(333))->toText(),
-		 "(int 42((int 100)(int 333)))", "");
+		 "(int 42(int 100int 333))", "");
+
+		 ASSERT_EQUALS("(int 42 (int 100(int 0, int 99), int 333))",
+		 (new Tree::Int(42))
+		 	->addChild((new Tree::Int(100))
+		 		->addChild(new Tree::Int(0))
+		 		->addChild(new Tree::Int(99)))
+		 	->addChild(new Tree::Int(333))->toText(),
+		 "(int 42(int 100(int 0int 99)int 333))", "");
 	}
 
 	// auto tree = new Tree::Int(8);
