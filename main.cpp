@@ -1,24 +1,99 @@
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include "test.h"
+
+/// брэйншторм
+/// использовать щаблоны для данных в нодах?
+/// асинхронные читалки и писалки для файлов?
+/// использовать смартпоинтеры?
+/// формат для хранения дерева в памяти неотличим от формата на диске?
+/// хранить всё в сыром char массиве?
+
 
 namespace Tree
 {
 class String;
 
-	class Int
+	class Abstract
 	{
 	public:
-		Int(const int value)
+		virtual bool isEqual(Abstract *other) const
+		{
+			if(!other)
+			{
+				return false;
+			}
+
+			if(children_.size() != other->children_.size())
+			{
+				return false;
+			}
+
+			if(!isDataEqual(other))
+			{
+				return false;
+			}
+
+			for(auto myChild = children_.cbegin(), otherChild = other->children_.cbegin();
+				myChild != children_.cend() || otherChild != other->children_.cend();
+				++myChild, ++otherChild)
+			{
+				if(!((*myChild)->isDataEqual(*otherChild)))
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
+		Abstract *addChild(Abstract const *child)
+		{
+			children_.push_back(child);
+			return this;
+		}
+
+	protected:
+		virtual bool isDataEqual(Abstract const *tree) const = 0;
+	private:
+		std::vector<Abstract const *> children_;
+	};
+
+	class Root : public Abstract
+	{
+	protected:
+		virtual bool isDataEqual(Abstract const *tree) const 
+		{
+		//	std::cout << "Root isDataEqual" << std::endl;
+			return dynamic_cast<Root const *>(tree) != nullptr;
+		}
+	};
+
+	class Int : public Abstract
+	{
+	public:
+		Int(const int value) :
+		 data_(value)
 		{
 
 		}
 
-		void addChild(String *child)
+		int data() const
 		{
-
+			return data_;
 		}
+
+	protected:
+		virtual bool isDataEqual(Abstract const *tree) const 
+		{
+			auto intNode = dynamic_cast<Int const *>(tree);
+		//	std::cout << "Int isDataEqual " << (intNode == nullptr) << std::endl;
+			return intNode && intNode->data() == data(); 
+		}
+
+	private:
+		int data_;
 	};
 
 	class String
@@ -33,11 +108,12 @@ class String;
 	class Tester
 	{
 	public:
-		static checkSerialization(const char* caseName, Int *expected)
+		static bool checkSerialization(const char* caseName, Int *expected)
 		{
-			expected->saveToFile();
-			const auto actual = Tree::fromFile();
-			ASSERT_EQUALS(caseName, *actual, *expected, "");
+		//	expected->saveToFile();
+		//	const auto actual = Tree::fromFile();
+		//	ASSERT_EQUALS(caseName, *actual, *expected, "");
+			return false;
 		}
 	};
 }
@@ -51,16 +127,65 @@ int main(int argc, char* argv[])
 		std::cout << i << ": " << argv[i] << std::endl;
 	}
 
-	auto tree = new Tree::Int(8);
-	Tree::Tester::checkSerialization("(int 8)", tree);
 
-	tree->addChild(new Tree::String("bar"));
-	Tree::Tester::checkSerialization("(int 8(string bar))", tree);
-	tree->addChild(new Tree::String("baz"));
-	Tree::Tester::checkSerialization("(int 8(string bar, string baz))", tree); 	
+	{
+		ASSERT_EQUALS("root() is always equal to root()",
+			Tree::Root().isEqual(new Tree::Root()), true, "");
 
-	ASSERT_EQUALS("1 is equal to 1", 1, 1, "");
-	ASSERT_EQUALS("1 is equal to 2", 1, 2, "1 is not equal to 2");
+		ASSERT_EQUALS("(int 42) is NOT equal to ()",
+			Tree::Int(42).isEqual(new Tree::Root()), false, "");
+
+		ASSERT_EQUALS("() is NOT equal to (int 42)",
+		 	Tree::Root().isEqual(new Tree::Int(42)), false, "");
+
+		ASSERT_EQUALS("(int 42) is equal to (int 42)",
+			Tree::Int(42).isEqual(new Tree::Int(42)), true, "");
+
+		ASSERT_EQUALS("(int 42) is NOT equal to (int 100)",
+			Tree::Int(42).isEqual(new Tree::Int(100)), false, "");
+
+		ASSERT_EQUALS("(int 100) is NOT equal to (int 42)",
+			Tree::Int(100).isEqual(new Tree::Int(42)), false, "");
+	}
+
+	{
+		auto int42int100 = (new Tree::Int(42))->addChild(new Tree::Int(100));
+		auto int100int42 = (new Tree::Int(100))->addChild(new Tree::Int(42));
+
+		Tree::Int int42(42);
+		Tree::Int int100(100);
+
+		ASSERT_EQUALS("(int 42(int 100)) is equal to (int 42(int 100))",
+			int42int100->isEqual(int42int100),
+			true, "");
+
+		ASSERT_EQUALS("(int 100 (int 42)) is NOT equal to (int 42(int 100))",
+			int100int42->isEqual(int42int100),
+			false, "");
+
+		ASSERT_EQUALS("(int 100 (int 42)) is NOT equal to (int 100)",
+			int100int42->isEqual(&int100),
+			false, "");
+
+		ASSERT_EQUALS("(int 100 (int 42)) is NOT equal to (int 42)",
+			int100int42->isEqual(&int42),
+			false, "");
+	}
+
+	{
+
+	}
+
+	// auto tree = new Tree::Int(8);
+	// Tree::Tester::checkSerialization("(int 8)", tree);
+
+	// tree->addChild(new Tree::String("bar"));
+	// Tree::Tester::checkSerialization("(int 8(string bar))", tree);
+	// tree->addChild(new Tree::String("baz"));
+	// Tree::Tester::checkSerialization("(int 8(string bar, string baz))", tree); 	
+
+	// ASSERT_EQUALS("1 is equal to 1", 1, 1, "");
+	// ASSERT_EQUALS("1 is equal to 2", 1, 2, "1 is not equal to 2");
 
 	return 0;
 }
