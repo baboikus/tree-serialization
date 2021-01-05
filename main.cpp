@@ -54,7 +54,32 @@ class String;
 			return this;
 		}
 
+		virtual std::string toText() const
+		{
+			std::string text = "(";
+			text += dataToText();
+			if(children_.size() > 0)
+			{
+				text += "(";
+			}
+			for(auto child = children_.cbegin(); child != children_.cend(); ++child)
+			{
+				if(child != children_.cbegin())
+				{
+					text += ", ";
+				}
+				text += (*child)->toText();
+			}
+			if(children_.size() > 0)
+			{
+				text += ")";
+			}
+			text += ")";
+			return text;
+		}
+
 	protected:
+		virtual std::string dataToText() const = 0;
 		virtual bool isDataEqual(Abstract const *tree) const = 0;
 	private:
 		std::vector<Abstract const *> children_;
@@ -62,7 +87,14 @@ class String;
 
 	class Root : public Abstract
 	{
+	public:
+
 	protected:
+		virtual std::string dataToText() const
+		{
+			return "";
+		}
+
 		virtual bool isDataEqual(Abstract const *tree) const 
 		{
 		//	std::cout << "Root isDataEqual" << std::endl;
@@ -85,6 +117,11 @@ class String;
 		}
 
 	protected:
+		virtual std::string dataToText() const
+		{
+			return std::string("int ") + std::to_string(data());
+		}
+
 		virtual bool isDataEqual(Abstract const *tree) const 
 		{
 			auto intNode = dynamic_cast<Int const *>(tree);
@@ -129,6 +166,8 @@ int main(int argc, char* argv[])
 
 
 	{
+		std::cout << std::endl << "Tree::isEqual simple" << std::endl;
+
 		ASSERT_EQUALS("root() is always equal to root()",
 			Tree::Root().isEqual(new Tree::Root()), true, "");
 
@@ -149,6 +188,8 @@ int main(int argc, char* argv[])
 	}
 
 	{
+		std::cout << std::endl << "Tree::isEqual complex" << std::endl;
+
 		auto int42int100 = (new Tree::Int(42))->addChild(new Tree::Int(100));
 		auto int100int42 = (new Tree::Int(100))->addChild(new Tree::Int(42));
 
@@ -173,7 +214,17 @@ int main(int argc, char* argv[])
 	}
 
 	{
+		std::cout << std::endl << "Tree::toText" << std::endl;
+	
+		ASSERT_EQUALS("()", (new Tree::Root())->toText(), "()", "");
 
+		ASSERT_EQUALS("(int 42)", (new Tree::Int(42))->toText(), "(int 42)", "");
+
+		ASSERT_EQUALS("(int 42 (int 100, int 333))",
+		 (new Tree::Int(42))
+		 	->addChild(new Tree::Int(100))
+		 	->addChild(new Tree::Int(333))->toText(),
+		 "(int 42((int 100), (int 333)))", "");
 	}
 
 	// auto tree = new Tree::Int(8);
