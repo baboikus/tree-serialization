@@ -168,30 +168,54 @@ public:
 class File
 {
 public:
-	static void saveToFile(const std::string &fileName, Abstract const *tree)
+	static bool saveToFile(const std::string &fileName, Abstract const *tree)
 	{
-
+		return true;
 	}
-	static void loadFromFile(const std::string &fileName, Abstract *tree)
+	static bool loadFromFile(const std::string &fileName, Abstract *tree)
 	{
-
+		return true;
 	}
 };
 
 class Tester
 {
 public:
-	static void checkSerialization(const char* caseName,
-								   Abstract const *expected,
+	static std::string checkSerialization(const char* caseName,
+ 								   Abstract const *expected,
 								   Abstract *init)
 	{
-		std::ofstream stream(caseName);
+
+		const auto fileName = std::string(caseName) + ".tree";
+		if(std::ifstream(fileName.c_str()) && std::remove(fileName.c_str()))
+		{
+			return std::string("can't remove testing file ") + fileName; 
+		}
+		std::ofstream stream(fileName.c_str());
 		stream << expected->toText();
-		File::saveToFile("asd", expected);
-		File::loadFromFile("asd", init);	
+		if(!File::saveToFile(fileName, expected))
+		{
+			return std::string("can't save tree to file ") + fileName;
+		};
+		if(!File::loadFromFile(fileName, init))
+		{
+			return std::string("can't load tree from file ") + fileName;
+		}
+
+		std::string error;
+		if(!init->isEqual(expected))
+		{
+			error += "loaded tree is not equal to initial. ";
+		}
+		if(!expected->isEqual(init))
+		{
+			error += "initial tree is not equal to loaded. ";
+		}
+
+		return error;	
 	//	expected->saveToFile();
 	//	const auto actual = Tree::fromFile();
-		ASSERT_EQUALS(caseName, (init->isEqual(expected) && expected->isEqual(init)), true, "");
+	//	ASSERT_EQUALS(caseName, (init->isEqual(expected) && expected->isEqual(init)), true, "");
 	}
 };
 
@@ -282,17 +306,29 @@ int main(int argc, char* argv[])
 	{
 		std::cout << std::endl << "Tree::File" << std::endl;
 
-		Tree::Tester::checkSerialization("empty tree ()",
-			new Tree::Empty(),
-			new Tree::Empty());
+		{
+			const auto error = 
+				Tree::Tester::checkSerialization("empty tree ()",
+					new Tree::Empty(),
+					new Tree::Empty());
+			ASSERT_EQUALS("empty tree", error, std::string(), error);
+	    }
 
-		Tree::Tester::checkSerialization("(int 42)",
-			new Tree::Int(42),
-			new Tree::Empty());
+	    {
+	    	const auto error = 
+				Tree::Tester::checkSerialization("(int 42)",
+				 	new Tree::Int(42),
+				 	new Tree::Empty());
+			ASSERT_EQUALS("(int 42)", error, std::string(), error);
+	    }
 
-		Tree::Tester::checkSerialization("(int 42(int 100))",
-			(new Tree::Int(42))->addChild(new Tree::Int(100)),
-			new Tree::Empty());
+	    {
+	    	const auto error = 
+				Tree::Tester::checkSerialization("(int 42(int 100))",
+					(new Tree::Int(42))->addChild(new Tree::Int(100)),
+					new Tree::Empty());
+			ASSERT_EQUALS("(int 42(int 100))", error, std::string(), error);
+		}
 	}
 
 	// auto tree = new Tree::Int(8);
