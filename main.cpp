@@ -3,6 +3,7 @@
 #include <vector>
 #include <functional>
 #include <fstream>
+#include <sstream>
 
 #include "test.h"
 
@@ -37,7 +38,7 @@ public:
 		return other && (other->toText() == toText());
 	}
 
-	virtual std::string toText() const
+	std::string toText() const
 	{
 		std::string text;
 		auto initial = [&text](Abstract const *tree){
@@ -211,11 +212,7 @@ public:
 		{
 			error += "initial tree is not equal to loaded. ";
 		}
-
-		return error;	
-	//	expected->saveToFile();
-	//	const auto actual = Tree::fromFile();
-	//	ASSERT_EQUALS(caseName, (init->isEqual(expected) && expected->isEqual(init)), true, "");
+		return error;
 	}
 };
 
@@ -304,7 +301,48 @@ int main(int argc, char* argv[])
 	}
 
 	{
-		std::cout << std::endl << "Tree::File" << std::endl;
+		std::cout << std::endl << "Tree::IO" << std::endl;
+
+		{
+			std::ostringstream expected(std::ios_base::binary);
+
+			std::stringstream actual(std::ios_base::binary);
+
+			std::cout << expected.tellp() << " ";
+			expected << 'c';
+			std::cout << expected.tellp() << " ";
+			int i = 32000000;
+			expected.write(reinterpret_cast<char*>(&i), sizeof i);
+			std::cout << expected.tellp() << " ";
+			expected << std::string("asd");
+			std::cout << expected.tellp() << " ";
+			expected << std::string("йцу");
+			std::cout << expected.tellp() << " ";
+			expected << 0;
+			std::cout << expected.tellp() << " ";
+			expected.flush();
+			std::cout << expected.tellp() << " ";
+
+			// auto size = expected.tellg();
+			// std::cout << size;
+			// std::string str(size, '\0');
+			// expected.seekg(0);
+			// expected.read(&str[0], size);
+			// std::cout << "str:" << str << std::endl;
+
+			//expected >> expectedData;
+
+			// Tree::IO::write(stringstream, new Tree::Empty());
+			std::string actualData;
+			actual >> actualData;
+
+			//std::cout << "a: " << actualData << std::endl;
+			std::cout << (1 + 4 + 3 + 6 + 4) << "e: " << expected.tellp() << expected.str() << std::endl;
+		}
+	}
+
+	{
+		std::cout << std::endl << "Tree::File serialization" << std::endl;
 
 		{
 			const auto error = 
@@ -330,17 +368,6 @@ int main(int argc, char* argv[])
 			ASSERT_EQUALS("(int 42(int 100))", error, std::string(), error);
 		}
 	}
-
-	// auto tree = new Tree::Int(8);
-	// Tree::Tester::checkSerialization("(int 8)", tree);
-
-	// tree->addChild(new Tree::String("bar"));
-	// Tree::Tester::checkSerialization("(int 8(string bar))", tree);
-	// tree->addChild(new Tree::String("baz"));
-	// Tree::Tester::checkSerialization("(int 8(string bar, string baz))", tree); 	
-
-	// ASSERT_EQUALS("1 is equal to 1", 1, 1, "");
-	// ASSERT_EQUALS("1 is equal to 2", 1, 2, "1 is not equal to 2");
 
 	return 0;
 }
