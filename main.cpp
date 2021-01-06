@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <fstream>
 
 #include "test.h"
 
@@ -164,17 +165,36 @@ public:
 	}
 };
 
+class File
+{
+public:
+	static void saveToFile(const std::string &fileName, Abstract const *tree)
+	{
+
+	}
+	static void loadFromFile(const std::string &fileName, Abstract *tree)
+	{
+
+	}
+};
+
 class Tester
 {
 public:
-	static bool checkSerialization(const char* caseName, Int *expected)
+	static void checkSerialization(const char* caseName,
+								   Abstract const *expected,
+								   Abstract *init)
 	{
+		std::ofstream stream(caseName);
+		stream << expected->toText();
+		File::saveToFile("asd", expected);
+		File::loadFromFile("asd", init);	
 	//	expected->saveToFile();
 	//	const auto actual = Tree::fromFile();
-	//	ASSERT_EQUALS(caseName, *actual, *expected, "");
-		return false;
+		ASSERT_EQUALS(caseName, (init->isEqual(expected) && expected->isEqual(init)), true, "");
 	}
 };
+
 }
 
 int main(int argc, char* argv[])
@@ -185,7 +205,6 @@ int main(int argc, char* argv[])
 	{
 		std::cout << i << ": " << argv[i] << std::endl;
 	}
-
 
 	{
 		std::cout << std::endl << "Tree::isEqual simple" << std::endl;
@@ -207,6 +226,9 @@ int main(int argc, char* argv[])
 
 		ASSERT_EQUALS("(int 100) is NOT equal to (int 42)",
 			Tree::Int(100).isEqual(new Tree::Int(42)), false, "");
+
+		ASSERT_EQUALS("(int 42) is equal to () + (int 42)",
+			Tree::Int(42).isEqual((new Tree::Empty())->addChild(new Tree::Int(42))), true, "");
 	}
 
 	{
@@ -255,6 +277,22 @@ int main(int argc, char* argv[])
 		 		->addChild(new Tree::Int(99)))
 		 	->addChild(new Tree::Int(333))->toText(),
 		 "(int 42(int 100(int 0int 99)int 333))", "");
+	}
+
+	{
+		std::cout << std::endl << "Tree::File" << std::endl;
+
+		Tree::Tester::checkSerialization("empty tree ()",
+			new Tree::Empty(),
+			new Tree::Empty());
+
+		Tree::Tester::checkSerialization("(int 42)",
+			new Tree::Int(42),
+			new Tree::Empty());
+
+		Tree::Tester::checkSerialization("(int 42(int 100))",
+			(new Tree::Int(42))->addChild(new Tree::Int(100)),
+			new Tree::Empty());
 	}
 
 	// auto tree = new Tree::Int(8);
