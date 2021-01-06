@@ -60,6 +60,8 @@ public:
 		return text;
 	}
 
+	virtual void writeDataToStream(std::ostream *stream) const = 0;
+
 protected:
 	virtual std::string dataToText() const = 0;
 	virtual bool isDataEqual(Abstract const *tree) const = 0;
@@ -84,6 +86,12 @@ public:
 	{
 		return;
 	}
+
+	virtual void writeDataToStream(std::ostream *stream) const
+	{
+		return;
+	}
+
 protected:
 	virtual std::string dataToText() const
 	{
@@ -140,6 +148,12 @@ public:
 		return data_;
 	}
 
+	virtual void writeDataToStream(std::ostream *stream) const
+	{
+		(*stream) << 'i';
+		stream->write(reinterpret_cast<const char*>(&data_), sizeof data_);
+	}
+
 protected:
 	virtual std::string dataToText() const
 	{
@@ -163,6 +177,28 @@ public:
 	String(const char* value)
 	{
 
+	}
+};
+
+class IO
+{
+public:
+	static std::ostream* write(std::ostream *stream, Abstract const * tree)
+	{		
+		auto initial = [&stream](Abstract const *tree){
+			tree->writeDataToStream(stream);
+			const auto childrenCount = tree->childrenCount();
+			stream->write(reinterpret_cast<const char*>(&childrenCount), sizeof childrenCount);
+		};
+		tree->traverse(initial, [](Abstract const *){});
+		stream->flush();
+
+		return stream;
+	}
+
+	static std::istream* read(std::istream *stream, Abstract *tree)
+	{
+		return stream;
 	}
 };
 
@@ -301,43 +337,77 @@ int main(int argc, char* argv[])
 	}
 
 	{
-		std::cout << std::endl << "Tree::IO" << std::endl;
+		std::cout << std::endl << "Tree::IO write and read" << std::endl;
+
+		const int zero = 0;
+		const int one = 1;
+		const int two = 2;
+		const int integer1 = 42;
+		const int integer2 = -100;
+		const int integer3 = 999999;
 
 		{
+			const auto expectedTree = new Tree::Empty();
+
 			std::ostringstream expected(std::ios_base::binary);
 
-			std::stringstream actual(std::ios_base::binary);
+			std::ostringstream actual(std::ios_base::binary);
+			Tree::IO::write(&actual, expectedTree);
 
-			std::cout << expected.tellp() << " ";
-			expected << 'c';
-			std::cout << expected.tellp() << " ";
-			int i = 32000000;
-			expected.write(reinterpret_cast<char*>(&i), sizeof i);
-			std::cout << expected.tellp() << " ";
-			expected << std::string("asd");
-			std::cout << expected.tellp() << " ";
-			expected << std::string("йцу");
-			std::cout << expected.tellp() << " ";
-			expected << 0;
-			std::cout << expected.tellp() << " ";
-			expected.flush();
-			std::cout << expected.tellp() << " ";
+			ASSERT_EQUALS("write ()", actual.str(), expected.str(), "");
 
-			// auto size = expected.tellg();
-			// std::cout << size;
-			// std::string str(size, '\0');
-			// expected.seekg(0);
-			// expected.read(&str[0], size);
-			// std::cout << "str:" << str << std::endl;
+			const auto actualTree = new Tree::Empty();
+			std::istringstream input(actual.str()); 
+			Tree::IO::read(&input, actualTree);
+			ASSERT_EQUALS("read ()", actualTree->isEqual(expectedTree), true, "");
+		}
 
-			//expected >> expectedData;
+		{
+			const auto expectedTree = new Tree::Int(integer1);
 
-			// Tree::IO::write(stringstream, new Tree::Empty());
-			std::string actualData;
-			actual >> actualData;
+			std::ostringstream expected(std::ios_base::binary);
+			expected << 'i';
+			expected.write(reinterpret_cast<const char*>(&integer1), sizeof integer1);
+			expected.write(reinterpret_cast<const char*>(&zero), sizeof zero);
 
-			//std::cout << "a: " << actualData << std::endl;
-			std::cout << (1 + 4 + 3 + 6 + 4) << "e: " << expected.tellp() << expected.str() << std::endl;
+			std::ostringstream actual(std::ios_base::binary);
+			Tree::IO::write(&actual, expectedTree);
+
+			ASSERT_EQUALS("write (int 42)", actual.str(), expected.str(), "");
+
+			const auto actualTree = new Tree::Empty();
+			std::istringstream input(actual.str()); 
+			Tree::IO::read(&input, actualTree);
+			ASSERT_EQUALS("read (int 42)", actualTree->isEqual(expectedTree), true, "");	
+		}
+
+		{
+			const auto expectedTree = (new Tree::Int(integer1))
+										->addChild(new Tree::Int(integer2))
+										->addChild(new Tree::Int(integer3));
+
+			std::ostringstream expected(std::ios_base::binary);
+			expected << 'i';
+			expected.write(reinterpret_cast<const char*>(&integer1), sizeof integer1);
+			expected.write(reinterpret_cast<const char*>(&two), sizeof two);
+
+			expected << 'i';
+			expected.write(reinterpret_cast<const char*>(&integer2), sizeof integer2);
+			expected.write(reinterpret_cast<const char*>(&zero), sizeof zero);
+
+			expected << 'i';
+			expected.write(reinterpret_cast<const char*>(&integer3), sizeof integer3);
+			expected.write(reinterpret_cast<const char*>(&zero), sizeof zero);
+
+			std::ostringstream actual(std::ios_base::binary);
+			Tree::IO::write(&actual, expectedTree);
+
+			ASSERT_EQUALS("write (int 42 (int -100, int 999999))", actual.str(), expected.str(), "");	
+
+			const auto actualTree = new Tree::Empty();
+			std::istringstream input(actual.str()); 
+			Tree::IO::read(&input, actualTree);
+			ASSERT_EQUALS("read (int 42 (int -100, int 999999))", actualTree->isEqual(expectedTree), true, "");
 		}
 	}
 
