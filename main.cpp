@@ -62,6 +62,8 @@ public:
 
 	virtual void writeDataToStream(std::ostream *stream) const = 0;
 
+	virtual char type() const = 0;
+	virtual std::pair<const char*, int> bytes() const = 0;
 protected:
 	virtual std::string dataToText() const = 0;
 	virtual bool isDataEqual(Abstract const *tree) const = 0;
@@ -90,6 +92,15 @@ public:
 	virtual void writeDataToStream(std::ostream *stream) const
 	{
 		return;
+	}
+
+	virtual char type() const 
+	{
+		return 'e';
+	}
+	virtual std::pair<const char*, int> bytes() const
+	{
+		return {nullptr, 0};
 	}
 
 protected:
@@ -154,6 +165,16 @@ public:
 		stream->write(reinterpret_cast<const char*>(&data_), sizeof data_);
 	}
 
+	virtual char type() const 
+	{
+		return 'i';
+	}
+
+	virtual std::pair<const char*, int> bytes() const
+	{
+		return {reinterpret_cast<const char*>(&data_), sizeof data_};
+	}
+
 protected:
 	virtual std::string dataToText() const
 	{
@@ -186,9 +207,17 @@ public:
 	static std::ostream* write(std::ostream *stream, Abstract const * tree)
 	{		
 		auto initial = [&stream](Abstract const *tree){
-			tree->writeDataToStream(stream);
+			const auto type = tree->type();
+			const auto [data, dataSize] = tree->bytes();
+			if(dataSize <= 0)
+			{
+				return ;
+			}
 			const auto childrenCount = tree->childrenCount();
+			stream->write(reinterpret_cast<const char*>(&type), sizeof type);
 			stream->write(reinterpret_cast<const char*>(&childrenCount), sizeof childrenCount);
+			stream->write(reinterpret_cast<const char*>(&dataSize), sizeof dataSize);
+			stream->write(reinterpret_cast<const char*>(data), dataSize);
 		};
 		tree->traverse(initial, [](Abstract const *){});
 		stream->flush();
@@ -196,9 +225,41 @@ public:
 		return stream;
 	}
 
-	static std::istream* read(std::istream *stream, Abstract *tree)
+	static Abstract* read(std::istream *stream, Abstract *tree = nullptr)
 	{
-		return stream;
+		char type = 'e';
+		int dataSize = 0;
+		int childrenCount = 0;
+
+		stream->read(reinterpret_cast<char*>(&type), sizeof type);
+		stream->read(reinterpret_cast<char*>(&childrenCount), sizeof childrenCount);
+		stream->read(reinterpret_cast<char*>(&dataSize), sizeof dataSize);
+		if(dataSize <= 0 || childrenCount < 0)
+		{
+			return new Empty();
+		}
+		switch(type)
+		{
+			case 'i':
+				int data;
+				stream->read(reinterpret_cast<char*>(&data), sizeof data);
+				std::cout << "data: " << data << " " << sizeof data << std::endl;
+				if(tree == nullptr)
+				{
+					tree = new Int(data);
+				}
+				else
+				{
+					auto child = new Int(data);
+					tree->addChild(child);
+				}
+		}
+		for(int i = 0; i < childrenCount; ++i)
+		{
+			read(stream, tree);
+		}		
+
+		return tree;
 	}
 };
 
@@ -356,9 +417,8 @@ int main(int argc, char* argv[])
 
 			ASSERT_EQUALS("write ()", actual.str(), expected.str(), "");
 
-			const auto actualTree = new Tree::Empty();
 			std::istringstream input(actual.str()); 
-			Tree::IO::read(&input, actualTree);
+			auto actualTree = Tree::IO::read(&input);
 			ASSERT_EQUALS("read ()", actualTree->isEqual(expectedTree), true, "");
 		}
 
@@ -367,17 +427,20 @@ int main(int argc, char* argv[])
 
 			std::ostringstream expected(std::ios_base::binary);
 			expected << 'i';
-			expected.write(reinterpret_cast<const char*>(&integer1), sizeof integer1);
 			expected.write(reinterpret_cast<const char*>(&zero), sizeof zero);
+			const int size = sizeof integer1;
+			expected.write(reinterpret_cast<const char*>(&size), sizeof size);
+			expected.write(reinterpret_cast<const char*>(&integer1), sizeof integer1);
 
 			std::ostringstream actual(std::ios_base::binary);
 			Tree::IO::write(&actual, expectedTree);
 
 			ASSERT_EQUALS("write (int 42)", actual.str(), expected.str(), "");
 
-			const auto actualTree = new Tree::Empty();
 			std::istringstream input(actual.str()); 
-			Tree::IO::read(&input, actualTree);
+			auto actualTree = Tree::IO::read(&input);
+			std::cout << "actualTree: " << actualTree->toText() << std::endl;
+			std::cout << "expectedTree: " << expectedTree->toText() << std::endl;
 			ASSERT_EQUALS("read (int 42)", actualTree->isEqual(expectedTree), true, "");	
 		}
 
@@ -386,27 +449,31 @@ int main(int argc, char* argv[])
 										->addChild(new Tree::Int(integer2))
 										->addChild(new Tree::Int(integer3));
 
+			const int size = sizeof integer1;
+
 			std::ostringstream expected(std::ios_base::binary);
 			expected << 'i';
-			expected.write(reinterpret_cast<const char*>(&integer1), sizeof integer1);
 			expected.write(reinterpret_cast<const char*>(&two), sizeof two);
+			expected.write(reinterpret_cast<const char*>(&size), sizeof size);
+			expected.write(reinterpret_cast<const char*>(&integer1), sizeof integer1);
 
 			expected << 'i';
+			expected.write(reinterpret_cast<const char*>(&zero), sizeof zero);
+			expected.write(reinterpret_cast<const char*>(&size), sizeof size);
 			expected.write(reinterpret_cast<const char*>(&integer2), sizeof integer2);
-			expected.write(reinterpret_cast<const char*>(&zero), sizeof zero);
 
 			expected << 'i';
-			expected.write(reinterpret_cast<const char*>(&integer3), sizeof integer3);
 			expected.write(reinterpret_cast<const char*>(&zero), sizeof zero);
+			expected.write(reinterpret_cast<const char*>(&size), sizeof size);
+			expected.write(reinterpret_cast<const char*>(&integer3), sizeof integer3);
 
 			std::ostringstream actual(std::ios_base::binary);
 			Tree::IO::write(&actual, expectedTree);
 
 			ASSERT_EQUALS("write (int 42 (int -100, int 999999))", actual.str(), expected.str(), "");	
 
-			const auto actualTree = new Tree::Empty();
 			std::istringstream input(actual.str()); 
-			Tree::IO::read(&input, actualTree);
+			auto actualTree = Tree::IO::read(&input);
 			ASSERT_EQUALS("read (int 42 (int -100, int 999999))", actualTree->isEqual(expectedTree), true, "");
 		}
 	}
