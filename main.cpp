@@ -238,21 +238,22 @@ public:
 		{
 			return new Empty();
 		}
+		Abstract *newSubTree = nullptr;
 		switch(type)
 		{
 			case 'i':
 				int data;
 				stream->read(reinterpret_cast<char*>(&data), sizeof data);
 				std::cout << "data: " << data << " " << sizeof data << std::endl;
-				if(tree == nullptr)
-				{
-					tree = new Int(data);
-				}
-				else
-				{
-					auto child = new Int(data);
-					tree->addChild(child);
-				}
+				newSubTree = new Int(data);
+		}
+		if(tree == nullptr)
+		{
+			tree = newSubTree;
+		}
+		else
+		{
+			tree->addChild(newSubTree);
 		}
 		for(int i = 0; i < childrenCount; ++i)
 		{
@@ -268,11 +269,22 @@ class File
 public:
 	static bool saveToFile(const std::string &fileName, Abstract const *tree)
 	{
+		std::ofstream stream(fileName.c_str());
+		if(!stream)
+		{
+			return false;
+		}
+		IO::write(&stream, tree);
 		return true;
 	}
-	static bool loadFromFile(const std::string &fileName, Abstract *tree)
+	static Abstract* loadFromFile(const std::string &fileName)
 	{
-		return true;
+		std::ifstream stream(fileName.c_str());
+		if(!stream)
+		{
+			return new Empty();
+		}
+		return IO::read(&stream);
 	}
 };
 
@@ -295,7 +307,8 @@ public:
 		{
 			return std::string("can't save tree to file ") + fileName;
 		};
-		if(!File::loadFromFile(fileName, init))
+		init = File::loadFromFile(fileName);
+		if(!init)
 		{
 			return std::string("can't load tree from file ") + fileName;
 		}
