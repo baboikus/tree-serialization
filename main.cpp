@@ -60,8 +60,6 @@ public:
 		return text;
 	}
 
-	virtual void writeDataToStream(std::ostream *stream) const = 0;
-
 	virtual char type() const = 0;
 	virtual std::pair<const char*, int> bytes() const = 0;
 protected:
@@ -85,11 +83,6 @@ public:
 	virtual void traverse(
 		std::function<void(Abstract const *)> initial,
 		std::function<void(Abstract const *)> final) const
-	{
-		return;
-	}
-
-	virtual void writeDataToStream(std::ostream *stream) const
 	{
 		return;
 	}
@@ -159,12 +152,6 @@ public:
 		return data_;
 	}
 
-	virtual void writeDataToStream(std::ostream *stream) const
-	{
-		(*stream) << 'i';
-		stream->write(reinterpret_cast<const char*>(&data_), sizeof data_);
-	}
-
 	virtual char type() const 
 	{
 		return 'i';
@@ -190,6 +177,47 @@ protected:
 
 private:
 	int data_;
+};
+
+
+class Real : public Naive
+{
+public:
+	Real(const double value) :
+	 data_(value)
+	{
+
+	}
+
+	double data() const
+	{
+		return data_;
+	}
+
+	virtual char type() const 
+	{
+		return 'r';
+	}
+
+	virtual std::pair<const char*, int> bytes() const
+	{
+		return {reinterpret_cast<const char*>(&data_), sizeof data_};
+	}
+
+protected:
+	virtual std::string dataToText() const
+	{
+		return std::string("real ") + std::to_string(data());
+	}
+
+	virtual bool isDataEqual(Abstract const *tree) const 
+	{
+		auto realNode = dynamic_cast<Real const *>(tree);
+		return realNode && realNode->data() == data(); 
+	}
+
+private:
+	double data_;
 };
 
 class String
@@ -242,10 +270,15 @@ public:
 		switch(type)
 		{
 			case 'i':
-				int data;
-				stream->read(reinterpret_cast<char*>(&data), sizeof data);
-				std::cout << "data: " << data << " " << sizeof data << std::endl;
-				newSubTree = new Int(data);
+				int intData;
+				stream->read(reinterpret_cast<char*>(&intData), sizeof intData);
+				newSubTree = new Int(intData);
+				break;
+			case 'r':
+				double realData;
+				stream->read(reinterpret_cast<char*>(&realData), sizeof realData);
+				newSubTree = new Real(realData);
+				break;
 		}
 		if(tree == nullptr)
 		{
@@ -301,12 +334,12 @@ public:
 		{
 			return std::string("can't remove testing file ") + fileName; 
 		}
-		std::ofstream stream(fileName.c_str());
-		stream << expected->toText();
+
 		if(!File::saveToFile(fileName, expected))
 		{
 			return std::string("can't save tree to file ") + fileName;
 		};
+
 		init = File::loadFromFile(fileName);
 		if(!init)
 		{
@@ -346,11 +379,17 @@ int main(int argc, char* argv[])
 		ASSERT_EQUALS("(int 42) is NOT equal to ()",
 			Tree::Int(42).isEqual(new Tree::Empty()), false, "");
 
+		ASSERT_EQUALS("(real 42) is NOT equal to ()",
+			Tree::Real(42.9).isEqual(new Tree::Empty()), false, "");
+
 		ASSERT_EQUALS("() is NOT equal to (int 42)",
 		 	Tree::Empty().isEqual(new Tree::Int(42)), false, "");
 
 		ASSERT_EQUALS("(int 42) is equal to (int 42)",
 			Tree::Int(42).isEqual(new Tree::Int(42)), true, "");
+
+		ASSERT_EQUALS("(real 7.5) is equal to (real 7.5)",
+			Tree::Real(7.5).isEqual(new Tree::Real(7.5)), true, "");
 
 		ASSERT_EQUALS("(int 42) is NOT equal to (int 100)",
 			Tree::Int(42).isEqual(new Tree::Int(100)), false, "");
@@ -419,6 +458,7 @@ int main(int argc, char* argv[])
 		const int integer1 = 42;
 		const int integer2 = -100;
 		const int integer3 = 999999;
+		const double real1 = 7.5;
 
 		{
 			const auto expectedTree = new Tree::Empty();
@@ -455,6 +495,28 @@ int main(int argc, char* argv[])
 			std::cout << "actualTree: " << actualTree->toText() << std::endl;
 			std::cout << "expectedTree: " << expectedTree->toText() << std::endl;
 			ASSERT_EQUALS("read (int 42)", actualTree->isEqual(expectedTree), true, "");	
+		}
+
+		{
+			const auto expectedTree = new Tree::Real(real1);
+
+			std::ostringstream expected(std::ios_base::binary);
+			expected << 'r';
+			expected.write(reinterpret_cast<const char*>(&zero), sizeof zero);
+			const int size = sizeof real1;
+			expected.write(reinterpret_cast<const char*>(&size), sizeof size);
+			expected.write(reinterpret_cast<const char*>(&real1), sizeof real1);
+
+			std::ostringstream actual(std::ios_base::binary);
+			Tree::IO::write(&actual, expectedTree);
+
+			ASSERT_EQUALS("write (real 7.5)", actual.str(), expected.str(), "");
+
+			std::istringstream input(actual.str()); 
+			auto actualTree = Tree::IO::read(&input);
+			std::cout << "actualTree: " << actualTree->toText() << std::endl;
+			std::cout << "expectedTree: " << expectedTree->toText() << std::endl;
+			ASSERT_EQUALS("read (real 7.5)", actualTree->isEqual(expectedTree), true, "");	
 		}
 
 		{
@@ -512,10 +574,12 @@ int main(int argc, char* argv[])
 
 	    {
 	    	const auto error = 
-				Tree::Tester::checkSerialization("(int 42(int 100))",
-					(new Tree::Int(42))->addChild(new Tree::Int(100)),
+				Tree::Tester::checkSerialization("(int 42(int 100, real 99.99))",
+					(new Tree::Int(42))
+						->addChild(new Tree::Int(100))
+						->addChild(new Tree::Real(99.99)),
 					new Tree::Empty());
-			ASSERT_EQUALS("(int 42(int 100))", error, std::string(), error);
+			ASSERT_EQUALS("(int 42(int 100, real 99.99))", error, std::string(), error);
 		}
 	}
 
