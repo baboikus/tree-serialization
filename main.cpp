@@ -17,6 +17,14 @@
 
 namespace Tree
 {
+enum class Type
+{
+	INVALID = 0,
+	INT = 1,
+	REAL = 2,
+	STRING = 3
+};
+
 class Abstract
 {
 public:
@@ -60,7 +68,7 @@ public:
 		return text;
 	}
 
-	virtual char type() const = 0;
+	virtual Type type() const = 0;
 	virtual std::pair<const char*, int> bytes() const = 0;
 protected:
 	virtual std::string dataToText() const = 0;
@@ -87,9 +95,9 @@ public:
 		return;
 	}
 
-	virtual char type() const 
+	virtual Type type() const 
 	{
-		return 'e';
+		return Type::INVALID;
 	}
 	virtual std::pair<const char*, int> bytes() const
 	{
@@ -151,9 +159,9 @@ public:
 		return data_;
 	}
 
-	virtual char type() const 
+	virtual Type type() const 
 	{
-		return 'i';
+		return Type::INT;
 	}
 
 	virtual std::pair<const char*, int> bytes() const
@@ -170,7 +178,6 @@ protected:
 	virtual bool isDataEqual(Abstract const *tree) const 
 	{
 		auto intNode = dynamic_cast<Int const *>(tree);
-	//	std::cout << "Int isDataEqual " << (intNode == nullptr) << std::endl;
 		return intNode && intNode->data() == data(); 
 	}
 
@@ -192,9 +199,9 @@ public:
 		return data_;
 	}
 
-	virtual char type() const 
+	virtual Type type() const 
 	{
-		return 'r';
+		return Type::REAL;
 	}
 
 	virtual std::pair<const char*, int> bytes() const
@@ -233,9 +240,9 @@ public:
 		return data_;
 	}
 
-	virtual char type() const 
+	virtual Type type() const 
 	{
-		return 's';
+		return Type::STRING;
 	}
 
 	virtual std::pair<const char*, int> bytes() const
@@ -259,39 +266,143 @@ private:
 	std::string data_;
 };
 
+template <class Stream>
 class IO
 {
 public:
-	static std::ostream* write(std::ostream *stream, Abstract const * tree)
-	{		
-		auto initial = [&stream](Abstract const *tree){
-			const auto type = tree->type();
-			const auto [data, dataSize] = tree->bytes();
-			if(dataSize <= 0)
-			{
-				return ;
-			}
-			const auto childrenCount = tree->childrenCount();
-			stream->write(reinterpret_cast<const char*>(&type), sizeof type);
-			stream->write(reinterpret_cast<const char*>(&childrenCount), sizeof childrenCount);
-			stream->write(reinterpret_cast<const char*>(&dataSize), sizeof dataSize);
-			stream->write(data, dataSize);
-		};
-		tree->traverse(initial, [](Abstract const *){});
-		stream->flush();
-
-		return stream;
+	IO(Stream *stream) : 
+		stream_(stream)
+	{
 	}
 
-	static Abstract* read(std::istream *stream)
+protected:
+	struct Segment
+	{
+		Type type_;
+		int childrenCount_;
+		int dataSize_;
+		const char* constData_;
+		char* dynamicData_; 
+	};
+
+	bool processSegment(Segment &s)
+	{
+		processType(s.type_);
+		processInt(s.childrenCount_);
+		processInt(s.dataSize_);
+		if(s.dataSize_ <= 0)
+		{
+			return false;
+		}
+		processData(s.type_, s.dataSize_, s.constData_, s.dynamicData_);
+		return true;
+	}
+
+	template <typename T>
+	void flow(T *data, const int size)
+	{
+		stream_->write(reinterpret_cast<const char*>(data), size);
+	}
+
+	virtual void processType(Type &t) = 0;
+	virtual void processInt(int &n) = 0;
+	virtual void processData(const Type type,
+							 const int dataSize,
+							 const char *constData, 
+							 char *dynamicData) = 0;
+
+	static const char signatureForType(const Type t)
+	{
+		switch(t)
+		{
+			case Type::INVALID: return 'e';
+			case Type::INT: return 'i';
+			case Type::REAL: return 'r';
+			case Type::STRING: return 's';
+		}
+		return 'e';
+	}
+
+	static const Type typeForSignature(const char s)
+	{
+		switch(s)
+		{
+			case 'e': return Type::INVALID;
+			case 'i': return Type::INT;
+			case 'r': return Type::REAL;
+			case 's': return Type::STRING;
+		}
+		return Type::INVALID;
+	} 
+
+private:
+	Stream *stream_;
+};
+
+class OStream : public IO<std::ostream>
+{
+public:
+	OStream(std::ostream *stream) :
+		IO(stream) 
+	{
+	}
+
+	OStream& write(Abstract const *tree)
+	{
+		auto initial = [this](Abstract const *tree)
+		{
+			if(!tree)
+			{
+				return;
+			}
+			const auto [data, dataSize] = tree->bytes();
+			Segment s{tree->type(), tree->childrenCount(), dataSize, data, nullptr};
+			processSegment(s);
+		};
+		tree->traverse(initial, [](Abstract const *){});
+
+		return *this;	
+	}
+
+protected:	
+	virtual void processType(Type &t)
+	{
+		const auto signature = IO::signatureForType(t);
+		flow<const char>(&signature, sizeof signature);
+	}
+
+	virtual void processInt(int &n)
+	{
+		flow<const int>(&n, sizeof n);
+	}
+
+	virtual void processData(const Type type,
+							 const int dataSize,
+							 const char *constData,
+							 char *dynamicData)
+	{
+		flow<const char>(constData, dataSize);
+	}
+};
+
+class IStream
+{
+public:
+	IStream(std::istream *stream) :
+		stream_(stream)
+	{
+
+	}
+
+	Abstract* read()
 	{
 		char type = 'e';
 		int dataSize = 0;
 		int childrenCount = 0;
 
-		stream->read(reinterpret_cast<char*>(&type), sizeof type);
-		stream->read(reinterpret_cast<char*>(&childrenCount), sizeof childrenCount);
-		stream->read(reinterpret_cast<char*>(&dataSize), sizeof dataSize);
+		stream_->read(reinterpret_cast<char*>(&type), sizeof type);
+		stream_->read(reinterpret_cast<char*>(&childrenCount), sizeof childrenCount);
+		stream_->read(reinterpret_cast<char*>(&dataSize), sizeof dataSize);
 		if(dataSize <= 0 || childrenCount < 0)
 		{
 			return new Empty();
@@ -301,28 +412,30 @@ public:
 		{
 			case 'i':
 				int intData;
-				stream->read(reinterpret_cast<char*>(&intData), sizeof intData);
+				stream_->read(reinterpret_cast<char*>(&intData), sizeof intData);
 				tree = new Int(intData);
 				break;
 			case 'r':
 				double realData;
-				stream->read(reinterpret_cast<char*>(&realData), sizeof realData);
+				stream_->read(reinterpret_cast<char*>(&realData), sizeof realData);
 				tree = new Real(realData);
 				break;
 			case 's':
 				std::string stringData(dataSize, '\0');
-				stream->read(&stringData[0], dataSize);
+				stream_->read(&stringData[0], dataSize);
 				tree = new String(stringData);
 				break;
 		}
 
 		for(int i = 0; i < childrenCount; ++i)
 		{
-			tree->addChild(read(stream));
+			tree->addChild(read());
 		}		
 
 		return tree;
 	}
+private:
+	std::istream *stream_;
 };
 
 class File
@@ -335,7 +448,7 @@ public:
 		{
 			return false;
 		}
-		IO::write(&stream, tree);
+		OStream(&stream).write(tree);
 		return true;
 	}
 	static Abstract* loadFromFile(const std::string &fileName)
@@ -345,7 +458,7 @@ public:
 		{
 			return new Empty();
 		}
-		return IO::read(&stream);
+		return IStream(&stream).read();
 	}
 };
 
@@ -513,12 +626,12 @@ int main(int argc, char* argv[])
 			std::ostringstream expected(std::ios_base::binary);
 
 			std::ostringstream actual(std::ios_base::binary);
-			Tree::IO::write(&actual, expectedTree);
+			Tree::OStream(&actual).write(expectedTree);
 
 			ASSERT_EQUALS("write ()", actual.str(), expected.str(), "");
 
 			std::istringstream input(actual.str()); 
-			auto actualTree = Tree::IO::read(&input);
+			auto actualTree = Tree::IStream(&input).read();
 			ASSERT_EQUALS("read ()", actualTree->isEqual(expectedTree), true, "");
 		}
 
@@ -533,14 +646,12 @@ int main(int argc, char* argv[])
 			expected.write(reinterpret_cast<const char*>(&integer1), sizeof integer1);
 
 			std::ostringstream actual(std::ios_base::binary);
-			Tree::IO::write(&actual, expectedTree);
+			Tree::OStream(&actual).write(expectedTree);
 
 			ASSERT_EQUALS("write (int 42)", actual.str(), expected.str(), "");
 
 			std::istringstream input(actual.str()); 
-			auto actualTree = Tree::IO::read(&input);
-			std::cout << "actualTree: " << actualTree->toText() << std::endl;
-			std::cout << "expectedTree: " << expectedTree->toText() << std::endl;
+			auto actualTree = Tree::IStream(&input).read();
 			ASSERT_EQUALS("read (int 42)", actualTree->isEqual(expectedTree), true, "");	
 		}
 
@@ -555,14 +666,13 @@ int main(int argc, char* argv[])
 			expected.write(reinterpret_cast<const char*>(&real1), sizeof real1);
 
 			std::ostringstream actual(std::ios_base::binary);
-			Tree::IO::write(&actual, expectedTree);
+			Tree::OStream(&actual).write(expectedTree);
 
 			ASSERT_EQUALS("write (real 7.5)", actual.str(), expected.str(), "");
 
 			std::istringstream input(actual.str()); 
-			auto actualTree = Tree::IO::read(&input);
+			auto actualTree = Tree::IStream(&input).read();
 			std::cout << "actualTree: " << actualTree->toText() << std::endl;
-			std::cout << "expectedTree: " << expectedTree->toText() << std::endl;
 			ASSERT_EQUALS("read (real 7.5)", actualTree->isEqual(expectedTree), true, "");	
 		}
 
@@ -577,14 +687,12 @@ int main(int argc, char* argv[])
 			expected.write(&string1[0], string1.size());
 
 			std::ostringstream actual(std::ios_base::binary);
-			Tree::IO::write(&actual, expectedTree);
+			Tree::OStream(&actual).write(expectedTree);
 
 			ASSERT_EQUALS("write (string asd)", actual.str(), expected.str(), "");
 
 			std::istringstream input(actual.str()); 
-			auto actualTree = Tree::IO::read(&input);
-			std::cout << "actualTree: " << actualTree->toText() << std::endl;
-			std::cout << "expectedTree: " << expectedTree->toText() << std::endl;
+			auto actualTree = Tree::IStream(&input).read();
 			ASSERT_EQUALS("read (string asd)", actualTree->isEqual(expectedTree), true, "");	
 		}
 
@@ -612,13 +720,15 @@ int main(int argc, char* argv[])
 			expected.write(reinterpret_cast<const char*>(&integer3), sizeof integer3);
 
 			std::ostringstream actual(std::ios_base::binary);
-			Tree::IO::write(&actual, expectedTree);
+			Tree::OStream(&actual).write(expectedTree);
 
 			ASSERT_EQUALS("write (int 42 (int -100, int 999999))", actual.str(), expected.str(), "");	
 
-			std::istringstream input(actual.str()); 
-			auto actualTree = Tree::IO::read(&input);
-			ASSERT_EQUALS("read (int 42 (int -100, int 999999))", actualTree->isEqual(expectedTree), true, "");
+			std::istringstream input(actual.str());
+			{ 
+				auto actualTree = Tree::IStream(&input).read();
+				ASSERT_EQUALS("read (int 42 (int -100, int 999999))", actualTree->isEqual(expectedTree), true, "");
+			}
 		}
 	}
 
