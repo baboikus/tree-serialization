@@ -4,6 +4,7 @@
 #include <functional>
 #include <fstream>
 #include <sstream>
+#include <cstring>
 
 #include "test.h"
 
@@ -269,20 +270,28 @@ private:
 template <class Stream>
 class IO
 {
-public:
+protected:
 	IO(Stream *stream) : 
 		stream_(stream)
 	{
 	}
 
-protected:
 	struct Segment
 	{
-		Type type_;
-		int childrenCount_;
-		int dataSize_;
-		const char* constData_;
-		char* dynamicData_; 
+		Type type_ = Type::INVALID;
+		int childrenCount_ = 0;
+		int dataSize_ = 0;
+		const char* constData_ = nullptr;
+		char* dynamicData_ = nullptr;
+
+		~Segment()
+		{
+			if(!dynamicData_)
+			{
+				delete dynamicData_;
+				dynamicData_ = nullptr;
+			}
+		} 
 	};
 
 	bool processSegment(Segment &s)
@@ -299,9 +308,23 @@ protected:
 	}
 
 	template <typename T>
-	void flow(T *data, const int size)
+	void writeData(const T *data, const int size)
 	{
 		stream_->write(reinterpret_cast<const char*>(data), size);
+	}
+
+	template <typename T>
+	void readData(T *data, const int size)
+	{
+		stream_->read(reinterpret_cast<char*>(data), size);
+	}
+
+	template <typename T>
+	T convertTo(const char *data)
+	{		
+		T converted;
+		std::memcpy(&converted, data, sizeof converted);
+		return converted;
 	}
 
 	virtual void processType(Type &t) = 0;
@@ -309,7 +332,7 @@ protected:
 	virtual void processData(const Type type,
 							 const int dataSize,
 							 const char *constData, 
-							 char *dynamicData) = 0;
+							 char *&dynamicData) = 0;
 
 	static const char signatureForType(const Type t)
 	{
@@ -368,74 +391,97 @@ protected:
 	virtual void processType(Type &t)
 	{
 		const auto signature = IO::signatureForType(t);
-		flow<const char>(&signature, sizeof signature);
+		writeData<char>(&signature, sizeof signature);
 	}
 
 	virtual void processInt(int &n)
 	{
-		flow<const int>(&n, sizeof n);
+		writeData<int>(&n, sizeof n);
 	}
 
 	virtual void processData(const Type type,
 							 const int dataSize,
 							 const char *constData,
-							 char *dynamicData)
+							 char *&dynamicData)
 	{
-		flow<const char>(constData, dataSize);
+		writeData<char>(constData, dataSize);
 	}
 };
 
-class IStream
+class IStream : public IO<std::istream>
 {
 public:
 	IStream(std::istream *stream) :
-		stream_(stream)
+		IO(stream)
 	{
 
 	}
 
 	Abstract* read()
 	{
-		char type = 'e';
-		int dataSize = 0;
-		int childrenCount = 0;
-
-		stream_->read(reinterpret_cast<char*>(&type), sizeof type);
-		stream_->read(reinterpret_cast<char*>(&childrenCount), sizeof childrenCount);
-		stream_->read(reinterpret_cast<char*>(&dataSize), sizeof dataSize);
-		if(dataSize <= 0 || childrenCount < 0)
+		Segment s;
+		processSegment(s);
+		if(!s.dynamicData_)
 		{
 			return new Empty();
 		}
-		Abstract *tree;
-		switch(type)
-		{
-			case 'i':
-				int intData;
-				stream_->read(reinterpret_cast<char*>(&intData), sizeof intData);
-				tree = new Int(intData);
-				break;
-			case 'r':
-				double realData;
-				stream_->read(reinterpret_cast<char*>(&realData), sizeof realData);
-				tree = new Real(realData);
-				break;
-			case 's':
-				std::string stringData(dataSize, '\0');
-				stream_->read(&stringData[0], dataSize);
-				tree = new String(stringData);
-				break;
-		}
 
-		for(int i = 0; i < childrenCount; ++i)
+		Abstract *tree;
+		switch(s.type_)
+		{
+		 	case Type::INVALID:
+		 	{
+		 		return new Empty();
+		 	}
+		 	case Type::INT:
+		 	{
+		 		tree = new Int(convertTo<int>(s.dynamicData_));
+		 		break;
+		 	}
+		 	case Type::REAL:
+		 	{
+		 		tree = new Real(convertTo<double>(s.dynamicData_));
+		 		break;
+		 	}
+		 	case Type::STRING:
+		 	{
+		 		tree = new String(s.dynamicData_);
+		 		break;
+		 	}
+		}
+		for(int i = 0; i < s.childrenCount_; ++i)
 		{
 			tree->addChild(read());
-		}		
-
+		}	
 		return tree;
 	}
-private:
-	std::istream *stream_;
+
+protected:
+	virtual void processType(Type &t)
+	{
+		char signature;
+		readData<char>(&signature, sizeof signature);
+		t = typeForSignature(signature);
+	}
+
+	virtual void processInt(int &n)
+	{
+		readData<int>(&n, sizeof n);
+	}
+
+	virtual void processData(const Type type,
+							 const int dataSize,
+							 const char *constData, 
+							 char *&dynamicData)
+	{
+		if(dataSize <= 0)
+		{
+			return;
+		}
+		dynamicData = new char[dataSize + 1];
+		dynamicData[dataSize] = '\0';
+		readData<char>(dynamicData, dataSize);
+	}
 };
 
 class File
@@ -672,7 +718,6 @@ int main(int argc, char* argv[])
 
 			std::istringstream input(actual.str()); 
 			auto actualTree = Tree::IStream(&input).read();
-			std::cout << "actualTree: " << actualTree->toText() << std::endl;
 			ASSERT_EQUALS("read (real 7.5)", actualTree->isEqual(expectedTree), true, "");	
 		}
 
