@@ -6,510 +6,19 @@
 #include <sstream>
 #include <cstring>
 
+#include "IO.hpp"
+#include "Tree.hpp"
 #include "test.h"
 
-/// использовать смартпоинтеры?
-
-
-namespace Tree
-{
-enum class Type
-{
-	INVALID = 0,
-	INT = 1,
-	REAL = 2,
-	STRING = 3
-};
-
-class Abstract
-{
-public:
-	virtual int childrenCount() const = 0;
-
-	virtual Abstract *addChild(Abstract *child) = 0;
-
-	virtual void traverse(
-		std::function<void(Abstract const *)> initial,
-		std::function<void(Abstract const *)> final) const = 0;
-
-	bool isLeaf() const
-	{
-		return childrenCount() == 0;
-	}
-
-	bool isEqual(Abstract const *other) const
-	{
-		return other && (other->toText() == toText());
-	}
-
-	std::string toText() const
-	{
-		std::string text;
-		auto initial = [&text](Abstract const *tree){
-			text += tree->dataToText();
-			if(!tree->isLeaf())
-			{
-				text += "(";
-			}
-		};
-		auto final = [&text](Abstract const *tree){
-			if(!tree->isLeaf())
-			{
-				text += ")";
-			}
-		};
-		text += "(";
-		traverse(initial, final);
-		text += ")";
-		return text;
-	}
-
-	virtual Type type() const = 0;
-	virtual std::pair<const char*, int> bytes() const = 0;
-protected:
-	virtual std::string dataToText() const = 0;
-	virtual bool isDataEqual(Abstract const *tree) const = 0;
-};
-
-class Empty : public Abstract
-{
-public:
-	virtual int childrenCount() const
-	{
-		return 0;
-	}
-
-	virtual Abstract *addChild(Abstract *child)
-	{
-		return child ? child : this;
-	}
-
-	virtual void traverse(
-		std::function<void(Abstract const *)> initial,
-		std::function<void(Abstract const *)> final) const
-	{
-		return;
-	}
-
-	virtual Type type() const 
-	{
-		return Type::INVALID;
-	}
-	virtual std::pair<const char*, int> bytes() const
-	{
-		return {nullptr, 0};
-	}
-
-protected:
-	virtual std::string dataToText() const
-	{
-		return "";
-	}
-
-	virtual bool isDataEqual(Abstract const *tree) const 
-	{
-		return dynamic_cast<Empty const *>(tree) != nullptr;
-	}
-};
-
-class Naive : public Abstract
-{
-public:
-	virtual int childrenCount() const
-	{
-		return children_.size();
-	}
-
-	virtual Abstract *addChild(Abstract *child)
-	{
-		children_.push_back(child);
-		return this;
-	}
-
-	virtual void traverse(std::function<void(Abstract const *)> initial,
-				  std::function<void(Abstract const *)> final) const
-	{
-		initial(this);
-		for(auto child = children_.cbegin(); child != children_.cend(); ++child)
-		{
-			(*child)->traverse(initial, final);
-		}
-		final(this);			
-	}
-
-private:
-	std::vector<Abstract const *> children_;
-};
-
-class Int : public Naive
-{
-public:
-	Int(const int value) :
-	 data_(value)
-	{
-
-	}
-
-	int data() const
-	{
-		return data_;
-	}
-
-	virtual Type type() const 
-	{
-		return Type::INT;
-	}
-
-	virtual std::pair<const char*, int> bytes() const
-	{
-		return {reinterpret_cast<const char*>(&data_), sizeof data_};
-	}
-
-protected:
-	virtual std::string dataToText() const
-	{
-		return std::string("int ") + std::to_string(data());
-	}
-
-	virtual bool isDataEqual(Abstract const *tree) const 
-	{
-		auto intNode = dynamic_cast<Int const *>(tree);
-		return intNode && intNode->data() == data(); 
-	}
-
-private:
-	int data_;
-};
-
-class Real : public Naive
-{
-public:
-	Real(const double value) :
-	 data_(value)
-	{
-
-	}
-
-	double data() const
-	{
-		return data_;
-	}
-
-	virtual Type type() const 
-	{
-		return Type::REAL;
-	}
-
-	virtual std::pair<const char*, int> bytes() const
-	{
-		return {reinterpret_cast<const char*>(&data_), sizeof data_};
-	}
-
-protected:
-	virtual std::string dataToText() const
-	{
-		return std::string("real ") + std::to_string(data());
-	}
-
-	virtual bool isDataEqual(Abstract const *tree) const 
-	{
-		auto realNode = dynamic_cast<Real const *>(tree);
-		return realNode && realNode->data() == data(); 
-	}
-
-private:
-	double data_;
-};
-
-
-class String : public Naive
-{
-public:
-	String(const std::string value) :
-	 data_(value)
-	{
-
-	}
-
-	const std::string& data() const
-	{
-		return data_;
-	}
-
-	virtual Type type() const 
-	{
-		return Type::STRING;
-	}
-
-	virtual std::pair<const char*, int> bytes() const
-	{
-		return {data_.c_str(), data_.size()};
-	}
-
-protected:
-	virtual std::string dataToText() const
-	{
-		return std::string("string ") + data();
-	}
-
-	virtual bool isDataEqual(Abstract const *tree) const 
-	{
-		auto stringNode = dynamic_cast<String const *>(tree);
-		return stringNode && stringNode->data() == data(); 
-	}
-
-private:
-	std::string data_;
-};
-
-template <class Stream>
-class IO
-{
-protected:
-	IO(Stream *stream) : 
-		stream_(stream)
-	{
-	}
-
-	struct Segment
-	{
-		Type type_ = Type::INVALID;
-		int childrenCount_ = 0;
-		int dataSize_ = 0;
-		const char* constData_ = nullptr;
-		char* dynamicData_ = nullptr;
-
-		~Segment()
-		{
-			if(!dynamicData_)
-			{
-				delete dynamicData_;
-				dynamicData_ = nullptr;
-			}
-		} 
-	};
-
-	bool processSegment(Segment &s)
-	{
-		processType(s.type_);
-		processInt(s.childrenCount_);
-		processInt(s.dataSize_);
-		if(s.dataSize_ <= 0)
-		{
-			return false;
-		}
-		processData(s.type_, s.dataSize_, s.constData_, s.dynamicData_);
-		return true;
-	}
-
-	template <typename T>
-	void writeData(const T *data, const int size)
-	{
-		stream_->write(reinterpret_cast<const char*>(data), size);
-	}
-
-	template <typename T>
-	void readData(T *data, const int size)
-	{
-		stream_->read(reinterpret_cast<char*>(data), size);
-	}
-
-	template <typename T>
-	T convertTo(const char *data)
-	{		
-		T converted;
-		std::memcpy(&converted, data, sizeof converted);
-		return converted;
-	}
-
-	virtual void processType(Type &t) = 0;
-	virtual void processInt(int &n) = 0;
-	virtual void processData(const Type type,
-							 const int dataSize,
-							 const char *constData, 
-							 char *&dynamicData) = 0;
-
-	static const char signatureForType(const Type t)
-	{
-		switch(t)
-		{
-			case Type::INVALID: return 'e';
-			case Type::INT: return 'i';
-			case Type::REAL: return 'r';
-			case Type::STRING: return 's';
-		}
-		return 'e';
-	}
-
-	static const Type typeForSignature(const char s)
-	{
-		switch(s)
-		{
-			case 'e': return Type::INVALID;
-			case 'i': return Type::INT;
-			case 'r': return Type::REAL;
-			case 's': return Type::STRING;
-		}
-		return Type::INVALID;
-	} 
-
-private:
-	Stream *stream_;
-};
-
-class OStream : public IO<std::ostream>
-{
-public:
-	OStream(std::ostream *stream) :
-		IO(stream) 
-	{
-	}
-
-	OStream& write(Abstract const *tree)
-	{
-		auto initial = [this](Abstract const *tree)
-		{
-			if(!tree)
-			{
-				return;
-			}
-			const auto [data, dataSize] = tree->bytes();
-			Segment s{tree->type(), tree->childrenCount(), dataSize, data, nullptr};
-			processSegment(s);
-		};
-		tree->traverse(initial, [](Abstract const *){});
-
-		return *this;	
-	}
-
-protected:	
-	virtual void processType(Type &t)
-	{
-		const auto signature = IO::signatureForType(t);
-		writeData<char>(&signature, sizeof signature);
-	}
-
-	virtual void processInt(int &n)
-	{
-		writeData<int>(&n, sizeof n);
-	}
-
-	virtual void processData(const Type type,
-							 const int dataSize,
-							 const char *constData,
-							 char *&dynamicData)
-	{
-		writeData<char>(constData, dataSize);
-	}
-};
-
-class IStream : public IO<std::istream>
-{
-public:
-	IStream(std::istream *stream) :
-		IO(stream)
-	{
-
-	}
-
-	Abstract* read()
-	{
-		Segment s;
-		processSegment(s);
-		if(!s.dynamicData_)
-		{
-			return new Empty();
-		}
-
-		Abstract *tree;
-		switch(s.type_)
-		{
-		 	case Type::INVALID:
-		 	{
-		 		return new Empty();
-		 	}
-		 	case Type::INT:
-		 	{
-		 		tree = new Int(convertTo<int>(s.dynamicData_));
-		 		break;
-		 	}
-		 	case Type::REAL:
-		 	{
-		 		tree = new Real(convertTo<double>(s.dynamicData_));
-		 		break;
-		 	}
-		 	case Type::STRING:
-		 	{
-		 		tree = new String(s.dynamicData_);
-		 		break;
-		 	}
-		}
-		for(int i = 0; i < s.childrenCount_; ++i)
-		{
-			tree->addChild(read());
-		}	
-		return tree;
-	}
-
-protected:
-	virtual void processType(Type &t)
-	{
-		char signature;
-		readData<char>(&signature, sizeof signature);
-		t = typeForSignature(signature);
-	}
-
-	virtual void processInt(int &n)
-	{
-		readData<int>(&n, sizeof n);
-	}
-
-	virtual void processData(const Type type,
-							 const int dataSize,
-							 const char *constData, 
-							 char *&dynamicData)
-	{
-		if(dataSize <= 0)
-		{
-			return;
-		}
-		dynamicData = new char[dataSize + 1];
-		dynamicData[dataSize] = '\0';
-		readData<char>(dynamicData, dataSize);
-	}
-};
-
-class File
-{
-public:
-	static bool saveToFile(const std::string &fileName, Abstract const *tree)
-	{
-		std::ofstream stream(fileName.c_str());
-		if(!stream)
-		{
-			return false;
-		}
-		OStream(&stream).write(tree);
-		return true;
-	}
-	static Abstract* loadFromFile(const std::string &fileName)
-	{
-		std::ifstream stream(fileName.c_str());
-		if(!stream)
-		{
-			return new Empty();
-		}
-		return IStream(&stream).read();
-	}
-};
 
 class Tester
 {
 public:
 	static std::string checkSerialization(const char* caseName,
- 								   Abstract const *expected,
-								   Abstract *init)
+ 								   Tree::Abstract const *expected,
+								   Tree::Abstract *init)
 	{
+		using namespace Tree;
 
 		const auto fileName = std::string(caseName) + ".tree";
 		if(std::ifstream(fileName.c_str()) && std::remove(fileName.c_str()))
@@ -540,8 +49,6 @@ public:
 		return error;
 	}
 };
-
-}
 
 int main(int argc, char* argv[])
 {
@@ -777,7 +284,7 @@ int main(int argc, char* argv[])
 
 		{
 			const auto error = 
-				Tree::Tester::checkSerialization("empty tree ()",
+				Tester::checkSerialization("empty tree ()",
 					new Tree::Empty(),
 					new Tree::Empty());
 			ASSERT_EQUALS("empty tree", error, std::string(), error);
@@ -785,7 +292,7 @@ int main(int argc, char* argv[])
 
 	    {
 	    	const auto error = 
-				Tree::Tester::checkSerialization("(int 42)",
+				Tester::checkSerialization("(int 42)",
 				 	new Tree::Int(42),
 				 	new Tree::Empty());
 			ASSERT_EQUALS("(int 42)", error, std::string(), error);
@@ -793,7 +300,7 @@ int main(int argc, char* argv[])
 
 	    {
 	    	const auto error = 
-				Tree::Tester::checkSerialization("(int 42(int 100, real 99.99))",
+				Tester::checkSerialization("(int 42(int 100, real 99.99))",
 					(new Tree::Int(42))
 						->addChild(new Tree::Int(100))
 						->addChild(new Tree::Real(99.99)),
@@ -819,7 +326,7 @@ int main(int argc, char* argv[])
 		ASSERT_EQUALS("exampleTree is equal to itself", exampleTree->isEqual(exampleTree), true, "");
 
 		const auto error = 
-			Tree::Tester::checkSerialization("exampleTree",
+			Tester::checkSerialization("exampleTree",
 				exampleTree,
 				new Tree::Empty());
 		ASSERT_EQUALS("exampleTree serialization", error, std::string(), error);
