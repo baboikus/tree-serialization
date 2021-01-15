@@ -1,5 +1,9 @@
 #pragma once
 
+#include <fstream>
+#include <sstream>
+#include <cstring>
+
 #include "Tree.hpp"
 
 namespace Tree
