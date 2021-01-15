@@ -4,8 +4,7 @@
 #include <string>
 #include <vector>
 #include <functional>
-
-/// использовать смартпоинтеры?
+#include <memory>
 
 namespace Tree
 {
@@ -17,23 +16,39 @@ enum class Type
 	STRING = 3
 };
 
+class Abstract;
+using TreePtr = std::shared_ptr<Abstract>;
+using TreeConstPtr = std::shared_ptr<Abstract const>;
+
+template< class T, class... Args >
+inline TreePtr makePtr( Args&&... args )
+{
+	return std::make_shared<T>(args...);
+}
+
+template <class T>
+inline TreeConstPtr makeConstPtr()
+{
+	return std::make_shared<T const>();
+}
+
 class Abstract
 {
 public:
 	virtual int childrenCount() const = 0;
 
-	virtual Abstract *addChild(Abstract *child) = 0;
+	virtual TreePtr addChild(TreePtr child) = 0;
 
 	virtual void traverse(
-		std::function<void(Abstract const *)> initial,
-		std::function<void(Abstract const *)> final) const = 0;
+		std::function<void(TreeConstPtr)> initial,
+		std::function<void(TreeConstPtr)> final) const = 0;
 
 	bool isLeaf() const
 	{
 		return childrenCount() == 0;
 	}
 
-	bool isEqual(Abstract const *other) const
+	bool isEqual(TreeConstPtr other) const
 	{
 		return other && (other->toText() == toText());
 	}
@@ -41,14 +56,14 @@ public:
 	std::string toText() const
 	{
 		std::string text;
-		auto initial = [&text](Abstract const *tree){
+		auto initial = [&text](TreeConstPtr tree){
 			text += tree->dataToText();
 			if(!tree->isLeaf())
 			{
 				text += "(";
 			}
 		};
-		auto final = [&text](Abstract const *tree){
+		auto final = [&text](TreeConstPtr tree){
 			if(!tree->isLeaf())
 			{
 				text += ")";
@@ -63,8 +78,18 @@ public:
 	virtual Type type() const = 0;
 	virtual std::pair<const char*, int> bytes() const = 0;
 protected:
+	static TreePtr make(Abstract *tree)
+	{
+		return TreePtr(tree);
+	}
+
+	static TreeConstPtr makeConst(Abstract const *tree)
+	{
+		return TreeConstPtr(tree);
+	}
+
 	virtual std::string dataToText() const = 0;
-	virtual bool isDataEqual(Abstract const *tree) const = 0;
+	virtual bool isDataEqual(TreeConstPtr tree) const = 0;
 };
 
 class Empty : public Abstract
@@ -75,14 +100,14 @@ public:
 		return 0;
 	}
 
-	virtual Abstract *addChild(Abstract *child)
+	virtual TreePtr addChild(TreePtr child)
 	{
-		return child ? child : this;
+		return child ? child : Abstract::make(this);
 	}
 
 	virtual void traverse(
-		std::function<void(Abstract const *)> initial,
-		std::function<void(Abstract const *)> final) const
+		std::function<void(TreeConstPtr)> initial,
+		std::function<void(TreeConstPtr)> final) const
 	{
 		return;
 	}
@@ -102,9 +127,9 @@ protected:
 		return "";
 	}
 
-	virtual bool isDataEqual(Abstract const *tree) const 
+	virtual bool isDataEqual(TreeConstPtr tree) const 
 	{
-		return dynamic_cast<Empty const *>(tree) != nullptr;
+		return std::dynamic_pointer_cast<Empty const>(tree) != nullptr;
 	}
 };
 
@@ -116,25 +141,25 @@ public:
 		return children_.size();
 	}
 
-	virtual Abstract *addChild(Abstract *child)
+	virtual TreePtr addChild(TreePtr child)
 	{
 		children_.push_back(child);
-		return this;
+		return make(this);
 	}
 
-	virtual void traverse(std::function<void(Abstract const *)> initial,
-				  std::function<void(Abstract const *)> final) const
+	virtual void traverse(std::function<void(TreeConstPtr)> initial,
+				  std::function<void(TreeConstPtr)> final) const
 	{
-		initial(this);
+		initial(makeConst(this));
 		for(auto child = children_.cbegin(); child != children_.cend(); ++child)
 		{
 			(*child)->traverse(initial, final);
 		}
-		final(this);			
+		final(makeConst(this));			
 	}
 
 private:
-	std::vector<Abstract const *> children_;
+	std::vector<TreeConstPtr> children_;
 };
 
 class Int : public Naive
@@ -167,9 +192,9 @@ protected:
 		return std::string("int ") + std::to_string(data());
 	}
 
-	virtual bool isDataEqual(Abstract const *tree) const 
+	virtual bool isDataEqual(TreeConstPtr tree) const 
 	{
-		auto intNode = dynamic_cast<Int const *>(tree);
+		auto intNode = std::dynamic_pointer_cast<Int const>(tree);
 		return intNode && intNode->data() == data(); 
 	}
 
@@ -207,9 +232,9 @@ protected:
 		return std::string("real ") + std::to_string(data());
 	}
 
-	virtual bool isDataEqual(Abstract const *tree) const 
+	virtual bool isDataEqual(TreeConstPtr tree) const 
 	{
-		auto realNode = dynamic_cast<Real const *>(tree);
+		auto realNode = std::dynamic_pointer_cast<Real const>(tree);
 		return realNode && realNode->data() == data(); 
 	}
 
@@ -248,9 +273,9 @@ protected:
 		return std::string("string ") + data();
 	}
 
-	virtual bool isDataEqual(Abstract const *tree) const 
+	virtual bool isDataEqual(TreeConstPtr tree) const 
 	{
-		auto stringNode = dynamic_cast<String const *>(tree);
+		auto stringNode = std::dynamic_pointer_cast<String const>(tree);
 		return stringNode && stringNode->data() == data(); 
 	}
 

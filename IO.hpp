@@ -111,9 +111,9 @@ public:
 	{
 	}
 
-	OStream& write(Abstract const *tree)
+	OStream& write(TreeConstPtr tree)
 	{
-		auto initial = [this](Abstract const *tree)
+		auto initial = [this](TreeConstPtr tree)
 		{
 			if(!tree)
 			{
@@ -123,7 +123,7 @@ public:
 			Segment s{tree->type(), tree->childrenCount(), dataSize, data, nullptr};
 			processSegment(s);
 		};
-		tree->traverse(initial, [](Abstract const *){});
+		tree->traverse(initial, [](TreeConstPtr){});
 
 		return *this;	
 	}
@@ -158,35 +158,35 @@ public:
 
 	}
 
-	Abstract* read()
+	TreePtr read()
 	{
 		Segment s;
 		processSegment(s);
 		if(!s.dynamicData_)
 		{
-			return new Empty();
+			return Tree::makePtr<Empty>();
 		}
 
-		Abstract *tree;
+		TreePtr tree;
 		switch(s.type_)
 		{
 		 	case Type::INVALID:
 		 	{
-		 		return new Empty();
+		 		return Tree::makePtr<Empty>();
 		 	}
 		 	case Type::INT:
 		 	{
-		 		tree = new Int(convertTo<int>(s.dynamicData_));
+		 		tree = Tree::makePtr<Int>(convertTo<int>(s.dynamicData_));
 		 		break;
 		 	}
 		 	case Type::REAL:
 		 	{
-		 		tree = new Real(convertTo<double>(s.dynamicData_));
+		 		tree = Tree::makePtr<Real>(convertTo<double>(s.dynamicData_));
 		 		break;
 		 	}
 		 	case Type::STRING:
 		 	{
-		 		tree = new String(s.dynamicData_);
+		 		tree = Tree::makePtr<String>(s.dynamicData_);
 		 		break;
 		 	}
 		}
@@ -228,7 +228,7 @@ protected:
 class File
 {
 public:
-	static bool saveToFile(const std::string &fileName, Abstract const *tree)
+	static bool saveToFile(const std::string &fileName, TreeConstPtr tree)
 	{
 		std::ofstream stream(fileName.c_str());
 		if(!stream)
@@ -238,14 +238,15 @@ public:
 		OStream(&stream).write(tree);
 		return true;
 	}
-	static Abstract* loadFromFile(const std::string &fileName)
+	static TreePtr loadFromFile(const std::string &fileName)
 	{
 		std::ifstream stream(fileName.c_str());
 		if(!stream)
 		{
-			return new Empty();
+			return Tree::makePtr<Empty>();
 		}
 		return IStream(&stream).read();
 	}
 };
+
 }
