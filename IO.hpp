@@ -113,7 +113,7 @@ public:
 
 	OStream& write(TreeConstPtr tree)
 	{
-		auto initial = [this](TreeConstPtr tree)
+		auto initial = [this](Abstract const * tree)
 		{
 			if(!tree)
 			{
@@ -123,7 +123,7 @@ public:
 			Segment s{tree->type(), tree->childrenCount(), dataSize, data, nullptr};
 			processSegment(s);
 		};
-		tree->traverse(initial, [](TreeConstPtr){});
+		tree->traverse(initial, [](Abstract const * ){});
 
 		return *this;	
 	}

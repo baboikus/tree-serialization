@@ -30,18 +30,18 @@ template <class T>
 inline TreeConstPtr makeConstPtr()
 {
 	return std::make_shared<T const>();
-}
+} 
 
 class Abstract
 {
 public:
 	virtual int childrenCount() const = 0;
 
-	virtual TreePtr addChild(TreePtr child) = 0;
+	virtual void addChild(TreePtr child) = 0;
 
 	virtual void traverse(
-		std::function<void(TreeConstPtr)> initial,
-		std::function<void(TreeConstPtr)> final) const = 0;
+		std::function<void(Abstract const *)> initial,
+		std::function<void(Abstract const *)> final) const = 0;
 
 	bool isLeaf() const
 	{
@@ -56,14 +56,14 @@ public:
 	std::string toText() const
 	{
 		std::string text;
-		auto initial = [&text](TreeConstPtr tree){
+		auto initial = [&text](Abstract const * tree){
 			text += tree->dataToText();
 			if(!tree->isLeaf())
 			{
 				text += "(";
 			}
 		};
-		auto final = [&text](TreeConstPtr tree){
+		auto final = [&text](Abstract const * tree){
 			if(!tree->isLeaf())
 			{
 				text += ")";
@@ -78,19 +78,16 @@ public:
 	virtual Type type() const = 0;
 	virtual std::pair<const char*, int> bytes() const = 0;
 protected:
-	static TreePtr make(Abstract *tree)
-	{
-		return TreePtr(tree);
-	}
-
-	static TreeConstPtr makeConst(Abstract const *tree)
-	{
-		return TreeConstPtr(tree);
-	}
 
 	virtual std::string dataToText() const = 0;
 	virtual bool isDataEqual(TreeConstPtr tree) const = 0;
 };
+
+TreePtr operator + (TreePtr parent, TreePtr child)
+{
+	parent->addChild(child);
+	return parent;
+}
 
 class Empty : public Abstract
 {
@@ -100,14 +97,13 @@ public:
 		return 0;
 	}
 
-	virtual TreePtr addChild(TreePtr child)
+	virtual void addChild(TreePtr child)
 	{
-		return child ? child : Abstract::make(this);
 	}
 
 	virtual void traverse(
-		std::function<void(TreeConstPtr)> initial,
-		std::function<void(TreeConstPtr)> final) const
+		std::function<void(Abstract const *)> initial,
+		std::function<void(Abstract const *)> final) const
 	{
 		return;
 	}
@@ -141,21 +137,20 @@ public:
 		return children_.size();
 	}
 
-	virtual TreePtr addChild(TreePtr child)
+	virtual void addChild(TreePtr child)
 	{
 		children_.push_back(child);
-		return make(this);
 	}
 
-	virtual void traverse(std::function<void(TreeConstPtr)> initial,
-				  std::function<void(TreeConstPtr)> final) const
+	virtual void traverse(std::function<void(Abstract const *)> initial,
+				  std::function<void(Abstract const *)> final) const
 	{
-		initial(makeConst(this));
+		initial(this);
 		for(auto child = children_.cbegin(); child != children_.cend(); ++child)
 		{
 			(*child)->traverse(initial, final);
 		}
-		final(makeConst(this));			
+		final(this);	
 	}
 
 private:

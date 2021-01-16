@@ -85,8 +85,11 @@ int main(int argc, char* argv[])
 		ASSERT_EQUALS("(int 100) is NOT equal to (int 42)",
 			Tree::Int(100).isEqual(Tree::makePtr<Int>(42)), false, "");
 
-		ASSERT_EQUALS("(int 42) is equal to () + (int 42)",
-			Tree::Int(42).isEqual(Tree::makePtr<Empty>()->addChild(Tree::makePtr<Int>(42))), true, "");
+		{
+			auto tree = Tree::makePtr<Empty>();
+			tree->addChild(Tree::makePtr<Int>(42));
+			ASSERT_EQUALS("(int 42) is equal to () + (int 42)", Tree::Int(42).isEqual(tree), true, "");
+		}
 
 		ASSERT_EQUALS("(string asd) is NOT equal to (string asdf)",
 			Tree::String("asd").isEqual(Tree::makePtr<String>("asdf")), false, "");
@@ -106,8 +109,8 @@ int main(int argc, char* argv[])
 
 		std::cout << std::endl << "Tree::isEqual complex" << std::endl;
 
-		auto int42int100 = (Tree::makePtr<Int>(42))->addChild(Tree::makePtr<Int>(100));
-		auto int100int42 = (Tree::makePtr<Int>(100))->addChild(Tree::makePtr<Int>(42));
+		auto int42int100 = Tree::makePtr<Int>(42) + Tree::makePtr<Int>(100);
+		auto int100int42 = Tree::makePtr<Int>(100) + Tree::makePtr<Int>(42);
 
 		auto int42 = Tree::makePtr<Int>(42);
 		auto int100 = Tree::makePtr<Int>(100);
@@ -139,17 +142,17 @@ int main(int argc, char* argv[])
 		ASSERT_EQUALS("(int 42)", (Tree::makePtr<Int>(42))->toText(), "(int 42)", "");
 
 		ASSERT_EQUALS("(int 42 (int 100, int 333))",
-		 (Tree::makePtr<Int>(42))
-		 	->addChild(Tree::makePtr<Int>(100))
-		 	->addChild(Tree::makePtr<Int>(333))->toText(),
+		 (Tree::makePtr<Int>(42) 
+		 	+ Tree::makePtr<Int>(100) 
+		 	+ Tree::makePtr<Int>(333))->toText(),
 		 "(int 42(int 100int 333))", "");
 
 		 ASSERT_EQUALS("(int 42 (int 100(int 0, int 99), int 333))",
-		 (Tree::makePtr<Int>(42))
-		 	->addChild((Tree::makePtr<Int>(100))
-		 		->addChild(Tree::makePtr<Int>(0))
-		 		->addChild(Tree::makePtr<Int>(99)))
-		 	->addChild(Tree::makePtr<Int>(333))->toText(),
+		 (Tree::makePtr<Int>(42)
+		 	+ (Tree::makePtr<Int>(100)
+		 		+ Tree::makePtr<Int>(0)
+		 		+ Tree::makePtr<Int>(99))
+		 	+  Tree::makePtr<Int>(333))->toText(),
 		 "(int 42(int 100(int 0int 99)int 333))", "");
 	}
 
@@ -243,9 +246,9 @@ int main(int argc, char* argv[])
 		}
 
 		{
-			const auto expectedTree = (Tree::makePtr<Int>(integer1))
-										->addChild(Tree::makePtr<Int>(integer2))
-										->addChild(Tree::makePtr<Int>(integer3));
+			const auto expectedTree = Tree::makePtr<Int>(integer1)
+										+ Tree::makePtr<Int>(integer2)
+										+ Tree::makePtr<Int>(integer3);
 
 			const int size = sizeof integer1;
 
@@ -302,9 +305,9 @@ int main(int argc, char* argv[])
 
 	    	const auto error = 
 				Tester::checkSerialization("(int 42(int 100, real 99.99))",
-					(Tree::makePtr<Int>(42))
-						->addChild(Tree::makePtr<Int>(100))
-						->addChild(Tree::makePtr<Real>(99.99)),
+					Tree::makePtr<Int>(42)
+						+ Tree::makePtr<Int>(100)
+						+ Tree::makePtr<Real>(99.99),
 					Tree::makePtr<Empty>());
 			ASSERT_EQUALS("(int 42(int 100, real 99.99))", error, std::string(), error);
 		}
@@ -314,16 +317,16 @@ int main(int argc, char* argv[])
 		using namespace Tree;
 
 		const auto exampleTree = 
-			(Tree::makePtr<Int>(8))
-				->addChild((Tree::makePtr<String>("bar"))
-					->addChild((Tree::makePtr<Real>(2.015))
-						->addChild(Tree::makePtr<Int>(9)))
-					->addChild(Tree::makePtr<Int>(2015))
-					->addChild(Tree::makePtr<String>("2015")))
-				->addChild((Tree::makePtr<String>("baz"))
-					->addChild(Tree::makePtr<String>("foo"))
-					->addChild((Tree::makePtr<Real>(6.28318))
-						->addChild(Tree::makePtr<String>("hello"))));
+			Tree::makePtr<Int>(8)
+				+ (Tree::makePtr<String>("bar")
+					+ (Tree::makePtr<Real>(2.015)
+						+ Tree::makePtr<Int>(9))
+					+ Tree::makePtr<Int>(2015)
+					+ Tree::makePtr<String>("2015"))
+				+ (Tree::makePtr<String>("baz")
+					+ Tree::makePtr<String>("foo")
+					+ (Tree::makePtr<Real>(6.28318)
+						+ Tree::makePtr<String>("hello")));
 		ASSERT_EQUALS("exampleTree is equal to itself", exampleTree->isEqual(exampleTree), true, "");
 
 		const auto error = 
