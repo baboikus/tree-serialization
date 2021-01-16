@@ -86,8 +86,7 @@ int main(int argc, char* argv[])
 			Tree::Int(100).isEqual(Tree::makePtr<Int>(42)), false, "");
 
 		{
-			auto tree = Tree::makePtr<Empty>();
-			tree->addChild(Tree::makePtr<Int>(42));
+			auto tree = Tree::makePtr<Empty>() + Tree::makePtr<Int>(42);
 			ASSERT_EQUALS("(int 42) is equal to () + (int 42)", Tree::Int(42).isEqual(tree), true, "");
 		}
 

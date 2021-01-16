@@ -34,10 +34,11 @@ inline TreeConstPtr makeConstPtr()
 
 class Abstract
 {
-public:
-	virtual int childrenCount() const = 0;
+	friend TreePtr operator + (TreePtr parent, TreePtr child);
 
-	virtual void addChild(TreePtr child) = 0;
+public:
+	virtual bool isEmpty() = 0;
+	virtual int childrenCount() const = 0;
 
 	virtual void traverse(
 		std::function<void(Abstract const *)> initial,
@@ -78,6 +79,7 @@ public:
 	virtual Type type() const = 0;
 	virtual std::pair<const char*, int> bytes() const = 0;
 protected:
+	virtual void addChild(TreePtr child) = 0;
 
 	virtual std::string dataToText() const = 0;
 	virtual bool isDataEqual(TreeConstPtr tree) const = 0;
@@ -85,6 +87,14 @@ protected:
 
 TreePtr operator + (TreePtr parent, TreePtr child)
 {
+	if(!child || child->isEmpty())
+	{
+		return parent;
+	}
+	if(!parent || parent->isEmpty())
+	{
+		return child;
+	}
 	parent->addChild(child);
 	return parent;
 }
@@ -92,13 +102,14 @@ TreePtr operator + (TreePtr parent, TreePtr child)
 class Empty : public Abstract
 {
 public:
+	virtual bool isEmpty()
+	{
+		return true;
+	}
+
 	virtual int childrenCount() const
 	{
 		return 0;
-	}
-
-	virtual void addChild(TreePtr child)
-	{
 	}
 
 	virtual void traverse(
@@ -118,6 +129,10 @@ public:
 	}
 
 protected:
+	virtual void addChild(TreePtr child)
+	{
+	}
+
 	virtual std::string dataToText() const
 	{
 		return "";
@@ -132,14 +147,14 @@ protected:
 class Naive : public Abstract
 {
 public:
+	virtual bool isEmpty()
+	{
+		return false;
+	}
+
 	virtual int childrenCount() const
 	{
 		return children_.size();
-	}
-
-	virtual void addChild(TreePtr child)
-	{
-		children_.push_back(child);
 	}
 
 	virtual void traverse(std::function<void(Abstract const *)> initial,
@@ -151,6 +166,12 @@ public:
 			(*child)->traverse(initial, final);
 		}
 		final(this);	
+	}
+
+protected:	
+	virtual void addChild(TreePtr child)
+	{
+		children_.push_back(child);
 	}
 
 private:

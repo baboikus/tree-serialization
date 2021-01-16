@@ -192,7 +192,7 @@ public:
 		}
 		for(int i = 0; i < s.childrenCount_; ++i)
 		{
-			tree->addChild(read());
+			tree + read();
 		}	
 		return tree;
 	}
