@@ -76,6 +76,11 @@ public:
 		return text;
 	}
 
+	void print()
+	{
+		std::cout << "it's a tree!";
+	}
+
 	virtual Type type() const = 0;
 	virtual std::pair<const char*, int> bytes() const = 0;
 protected:

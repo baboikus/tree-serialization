@@ -39,18 +39,10 @@ public:
 		}
 		return error;
 	}
-};
 
-int main(int argc, char* argv[])
-{
-	std::cout << "hello babo! it's cmake!" << std::endl;
-
-	for(int i = 0; i < argc; ++i)
+	static void runAllTests()
 	{
-		std::cout << i << ": " << argv[i] << std::endl;
-	}
-
-	{
+		{
 		using namespace Tree;
 
 		std::cout << std::endl << "Tree::isEqual simple" << std::endl;
@@ -334,6 +326,93 @@ int main(int argc, char* argv[])
 				Tree::makePtr<Empty>());
 		ASSERT_EQUALS("exampleTree serialization", error, std::string(), error);
 	}
+	
+	}
+};
+
+inline void printHelp()
+{
+	std::cout << "Usage: tree -i [INPUT_FILE] -o [OUTPUT_FILE]" << std::endl;
+	std::cout << "    or tree --run-tests" << std::endl;
+}
+
+inline int notEnoughtArgsError()
+{
+	std::cout << "not enought args" << std::endl;
+	printHelp();
+	return 1;
+}
+
+inline int tooManyArgsError()
+{
+	std::cout << "too many args" << std::endl;
+	printHelp();
+	return 2;
+}
+
+int main(int argc, char* argv[])
+{
+	std::string inputFileName;
+	std::string outputFileName;
+
+	for(int i = 0; i < argc; ++i)
+	{
+		auto arg = std::string(argv[i]);
+		if(arg == "--run-tests")
+		{
+			Tester::runAllTests();
+			return 0;
+		}
+		else if(arg == "-i")
+		{
+			if(!inputFileName.empty())
+			{
+				return tooManyArgsError();
+			}
+
+			++i;
+			if(i < argc)
+			{
+				inputFileName = argv[i];
+			}
+			else
+			{
+				return notEnoughtArgsError();
+			}
+		}
+		else if(arg == "-o")
+		{
+			if(!outputFileName.empty())
+			{
+				return tooManyArgsError();
+			}
+
+			++i;
+			if(i < argc)
+			{
+				outputFileName = argv[i];
+			}
+			else
+			{
+				return notEnoughtArgsError();
+			}
+		}
+	}
+	
+	if(inputFileName.empty() || outputFileName.empty())
+	{
+		return notEnoughtArgsError();
+	}
+
+	auto tree = Tree::File::loadFromFile(inputFileName);
+	if(!tree)
+	{
+		std::cout << "load file error" << std::endl;
+		printHelp();
+		return 3;
+	}
+	tree->print();
+	Tree::File::saveToFile(outputFileName, tree);
 
 	return 0;
 }
