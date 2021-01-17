@@ -78,7 +78,23 @@ public:
 
 	void print()
 	{
-		std::cout << "it's a tree!";
+		int indent = 0;
+		auto initial = [&indent](Abstract const * tree){
+			if(indent > 0)
+			{
+				for(int i = 0; i < indent - 1; ++i)
+				{
+					std::cout << "	";
+				}
+				std::cout << "+";
+			}
+			std::cout << tree->dataToText() << std::endl;
+			++indent;
+		};
+		auto final = [&indent](Abstract const * tree){
+			--indent;
+		};
+		traverse(initial, final);
 	}
 
 	virtual Type type() const = 0;
