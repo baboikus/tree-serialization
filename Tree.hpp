@@ -20,10 +20,16 @@ class Abstract;
 using TreePtr = std::shared_ptr<Abstract>;
 using TreeConstPtr = std::shared_ptr<Abstract const>;
 
+template< class T>
+inline TreePtr makePtr()
+{
+	return std::make_shared<T>();
+}
+
 template< class T, class... Args >
 inline TreePtr makePtr( Args&&... args )
 {
-	return std::make_shared<T>(args...);
+	return std::make_shared<T>(std::forward<T>(args...))
 }
 
 template <class T>
@@ -283,10 +289,22 @@ private:
 class String : public Naive
 {
 public:
-	String(const std::string value) :
+	String(const std::string &value) :
 	 data_(value)
 	{
+		std::cout << "lvalue string" << std::endl;
+	}
 
+	String(std::string &&value) :
+	 data_(value)
+	{
+		std::cout << "rvalue string" << std::endl;
+	}
+
+	String(const char *value) :
+		data_(value)
+	{
+		std::cout << "const char*" << std::endl;
 	}
 
 	const std::string& data() const
