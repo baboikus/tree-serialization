@@ -120,7 +120,11 @@ public:
 				return;
 			}
 			const auto [data, dataSize] = tree->bytes();
-			Segment s{tree->type(), tree->childrenCount(), dataSize, data, nullptr};
+			Segment s{.type_ = tree->type(),
+                      .childrenCount_ = tree->childrenCount(),
+					  .dataSize_ = dataSize,
+					  .constData_ = data,
+					  .dynamicData_ = nullptr};
 			processSegment(s);
 		};
 		tree->traverse(initial, [](Abstract const * ){});
