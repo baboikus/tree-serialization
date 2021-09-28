@@ -27,9 +27,9 @@ protected:
 
 		~Segment()
 		{
-			if(!dynamicData_)
+			if(dynamicData_)
 			{
-				delete dynamicData_;
+				delete[] dynamicData_;
 				dynamicData_ = nullptr;
 			}
 		} 
@@ -200,7 +200,7 @@ public:
 protected:
 	virtual void processType(Type &t)
 	{
-		char signature;
+		char signature = 'e';
 		readData<char>(&signature, sizeof signature);
 		t = typeForSignature(signature);
 	}
