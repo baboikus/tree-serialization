@@ -9,7 +9,13 @@ add_compile_options(
   $<$<CONFIG:DEBUG>:-g>
   $<$<CONFIG:DEBUG>:-O0>
   $<$<CONFIG:RELEASE>:-O2>
+  $<$<CONFIG:${GPROF}>:-pg>
 )
+
+add_link_options(
+  $<$<BOOL:${GPROF}>:-pg>
+)
+
 
 # add the executable
 add_executable(tree main.cpp)
