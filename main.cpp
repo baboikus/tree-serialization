@@ -341,6 +341,16 @@ public:
 
 		checkSerialization("big flopa benchmark", bigFlopaTree, bigFlopaTree);
 	}
+
+	static void runBasicTreeBuildingBenchmark(const int dataSize)
+	{
+		using namespace Tree;
+
+		for(int i = 0; i < dataSize; ++i)
+		{
+			auto p = makePtr<String>(std::to_string(std::rand() % 1000000));
+		}
+	}
 };
 
 inline void printHelp()
@@ -378,7 +388,7 @@ int main(int argc, char* argv[])
 		}
 		if(arg == "--run-benchmarks")
 		{
-			Tester::runBenchmark(std::stoi(argv[i + 1]));
+			Tester::runBasicTreeBuildingBenchmark(std::stoi(argv[i + 1]));
 			return 0;
 		}
 		else if(arg == "-i")
