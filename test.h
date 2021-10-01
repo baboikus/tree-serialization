@@ -1,4 +1,5 @@
 
+
 /// Макрос для самопальных тестовых проверок. 
 #define ASSERT_EQUALS(caseName, actual, expected, onFailureText) \
 	if(actual == expected) \
@@ -14,4 +15,4 @@
 		std::cout << "	actual: " << actual << std::endl; \
 		std::cout << "	expected: " << expected << std::endl; \
 		std::cout << std::endl; \
-	} 
+	}
