@@ -326,7 +326,7 @@ public:
 				Tree::makePtr<Empty>());
 		ASSERT_EQUALS("exampleTree serialization", error, std::string(), error);
 	}
-	
+
 	}
 
 	static void runBenchmark()
@@ -334,10 +334,12 @@ public:
 		using namespace Tree;
 
 		auto bigFlopaTree = makePtr<String>("string string string!");
-		for(int i = 0; i < 1000; ++i)
+		for(int i = 0; i < 1000000; ++i)
 		{
-			bigFlopaTree = bigFlopaTree + makePtr<String>("string string string!");
+			bigFlopaTree = bigFlopaTree + makePtr<String>("flopa flopa!");
 		}
+
+		checkSerialization("big flopa benchmark", bigFlopaTree, bigFlopaTree);
 	}
 };
 

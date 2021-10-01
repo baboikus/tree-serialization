@@ -6,10 +6,18 @@ project(tree)
 # specify the C++ standard
 set(CMAKE_CXX_STANDARD 17)
 add_compile_options(
-  $<$<CONFIG:DEBUG>:-g>
-  $<$<CONFIG:DEBUG>:-O0>
   $<$<CONFIG:RELEASE>:-O2>
+
+  $<$<CONFIG:VALGRIND>:-O0>
+  $<$<CONFIG:${VALGRIND}>:-g>
+
+  $<$<CONFIG:${GPROF}>:-pg>
 )
+
+add_link_options(
+  $<$<BOOL:${GPROF}>:-pg>
+)
+
 
 # add the executable
 add_executable(tree main.cpp)
