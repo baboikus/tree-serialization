@@ -29,7 +29,7 @@ inline TreePtr makePtr()
 template< class T, class... Args >
 inline TreePtr makePtr( Args&&... args )
 {
-	return std::make_shared<T>(std::forward<T>(args...))
+	return std::make_shared<T>(std::forward<T>(args...));
 }
 
 template <class T>
@@ -292,19 +292,19 @@ public:
 	String(const std::string &value) :
 	 data_(value)
 	{
-		std::cout << "lvalue string" << std::endl;
+//		std::cout << "lvalue string" << std::endl;
 	}
 
 	String(std::string &&value) :
 	 data_(value)
 	{
-		std::cout << "rvalue string" << std::endl;
+//		std::cout << "rvalue string" << std::endl;
 	}
 
 	String(const char *value) :
 		data_(value)
 	{
-		std::cout << "const char*" << std::endl;
+//		std::cout << "const char*" << std::endl;
 	}
 
 	const std::string& data() const
