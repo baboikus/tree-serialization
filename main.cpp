@@ -346,10 +346,9 @@ public:
 	{
 		using namespace Tree;
 
-		auto bigFlopaTree = makePtr<String>(std::to_string(std::rand() % 1000000));
 		for(int i = 0; i < dataSize; ++i)
 		{
-			bigFlopaTree + makePtr<String>(std::to_string(std::rand() % 1000000));
+			auto p = makePtr<String>(std::to_string(std::rand() % 1000000));
 		}
 	}
 };
