@@ -18,6 +18,6 @@ cd ../..
 cmake -S . -B build/gprof -DCMAKE_BUILD_TYPE=RELEASE -DGPROF=1
 cmake --build build/gprof
 cd build/gprof
-./tree --run-benchmarks 10000000
+./tree --run-benchmarks 20000000
 gprof tree gmon.out > ../../$PROFILE_DIR/gprof.txt
 cd ../..
