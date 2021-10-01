@@ -329,12 +329,12 @@ public:
 
 	}
 
-	static void runBenchmark()
+	static void runBenchmark(const int depth)
 	{
 		using namespace Tree;
 
 		auto bigFlopaTree = makePtr<String>("string string string!");
-		for(int i = 0; i < 1000000; ++i)
+		for(int i = 0; i < depth; ++i)
 		{
 			bigFlopaTree = bigFlopaTree + makePtr<String>("flopa flopa!");
 		}
@@ -378,7 +378,7 @@ int main(int argc, char* argv[])
 		}
 		if(arg == "--run-benchmarks")
 		{
-			Tester::runBenchmark();
+			Tester::runBenchmark(std::stoi(argv[i + 1]));
 			return 0;
 		}
 		else if(arg == "-i")
