@@ -292,19 +292,16 @@ public:
 	String(const std::string &value) :
 	 data_(value)
 	{
-//		std::cout << "lvalue string" << std::endl;
 	}
 
 	String(std::string &&value) :
 	 data_(value)
 	{
-//		std::cout << "rvalue string" << std::endl;
 	}
 
 	String(const char *value) :
 		data_(value)
 	{
-//		std::cout << "const char*" << std::endl;
 	}
 
 	const std::string& data() const
